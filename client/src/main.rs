@@ -1,6 +1,7 @@
 use aya::Ebpf;
 use aya::maps::RingBuf;
 use aya::programs::TracePoint;
+use tokio::sync::mpsc;
 
 mod dta;
 
@@ -27,7 +28,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Aegis Sentinel is active. Monitoring network intent...");
 
-    let mut tracker = NewTracker();
+    // mpsc sender
+    let (tx, mut rx) = tokio::sync::mpsc::channel(100); // Buffer of 100 anomalous events
+    let mut tracker = NewTracker(tx);
+
+     tokio::spawn(async move {
+         let client = reqwest::Client::new();
+         let api_url = "http://localhost:8080/api/v1/telemetry";
+         while let Some(payload) = rx.recv().await {
+             match client.post(api_url).json(&payload).send().await {
+                 Ok(_) => println!("🚀 Telemetry pushed to GenAPI!"),
+                 Err(e) => eprintln!("❌ GenAPI connection failed: {}", e),
+             }
+         }
+     });
+
     let mut ring_buf = RingBuf::try_from(bpf.map_mut("events").unwrap())?;
     
     // 5. Poll the buffer continuously

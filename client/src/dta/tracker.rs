@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use aya::util::online_cpus;
+use tokio::sync::mpsc;
 
-use crate::dta::{Event, Tracker};
+use crate::dta::{Event, TelemetryPayload, Tracker};
 
 
-pub(crate) fn NewTracker() -> Tracker {
+pub(crate) fn NewTracker(tx: mpsc::Sender<TelemetryPayload>) -> Tracker {
     Tracker {
         scores: HashMap::new(),
+        tx,
     }
 }
 
@@ -48,6 +50,20 @@ pub(crate) fn Evaluate (tracker: &mut Tracker, event: &Event) {
             "⚠️ [ANOMALY DETECTED] PID: {} ({}) -> {}:{} | Reason: {} | S-Score: {:.2}",
             pid, comm_string, ip, port, reason, score
         );
+
+        let payload = TelemetryPayload {
+            pid,
+            comm: comm_string.to_string(),
+            dest_ip: ip.to_string(),
+            dest_port: port,
+            is_anomalous,
+            reason,
+            score: *score as f64,
+        };
+
+        if let Err(e) = tracker.tx.try_send(payload) {
+            eprintln!("Rate limit hit or channel full: {}", e);
+        }
 
         // 5. The Kill-Switch Threshold [cite: 50]
         if *score >= 0.7 {
