@@ -8,6 +8,8 @@
 // };
 
 use std::collections::HashMap;
+use serde::Serialize;
+use tokio::sync::mpsc;
 pub(crate) mod tracker;
 
 
@@ -23,4 +25,16 @@ pub(crate) struct Event {
 
 pub(crate) struct Tracker {
     scores: HashMap<u32, f32>,
+    pub tx: mpsc::Sender<TelemetryPayload>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub(crate) struct TelemetryPayload {
+    pub pid: u32,
+    pub comm: String,
+    pub dest_ip: String,
+    pub dest_port: u16,
+    pub is_anomalous: bool,
+    pub reason: String,
+    pub score: f64,
 }
