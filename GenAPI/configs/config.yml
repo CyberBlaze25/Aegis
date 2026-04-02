@@ -1,0 +1,21 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug" # Opts: debug, release
+
+database:
+  url: ${DB_URL}
+  max_conns: 20
+
+# API Level
+auth:
+  require_api_key: true
+  header_name: "API-KEY"
+  ip_restriction: false
+
+modules:
+  authentication: # APPlICATION LEVEL
+    enabled: false
+
+  agentic_ai:
+    enabled: true
