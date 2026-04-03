@@ -34,9 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
      tokio::spawn(async move {
          let client = reqwest::Client::new();
-         let api_url = "http://localhost:8080/api/v1/telemetry";
+         let api_url = "http://0.0.0.0:8080/api/v1/telemetry";
          while let Some(payload) = rx.recv().await {
-             match client.post(api_url).json(&payload).send().await {
+             match client.post(api_url).header("API-KEY", "ASS").json(&payload).send().await {
                  Ok(_) => println!("🚀 Telemetry pushed to GenAPI!"),
                  Err(e) => eprintln!("❌ GenAPI connection failed: {}", e),
              }

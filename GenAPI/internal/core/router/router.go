@@ -6,6 +6,7 @@ import (
 	config "gentools/genapi/configs"
 	auth_m "gentools/genapi/internal/middleware/auth_m"
 	logger_m "gentools/genapi/internal/middleware/logger"
+	"gentools/genapi/internal/modules/telemetry"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,7 +31,19 @@ func NewRouterRun(url string, dbpool *pgxpool.Pool, cfg *config.Config) {
 
 	r.Use(auth_m.GenAuth(dbpool, cfg))
 
-	r.GET("/users", get_users)
+	// r.GET("/users", get_users)
+
+	hub := telemetry.NewHub()
+	go hub.Run()
+
+	telemetryCtrl := &telemetry.TelemetryController{
+		Hub: hub,
+		DB:  dbpool,
+	}
+
+	r.POST("/api/v1/telemetry", telemetryCtrl.IngestTelemetry)
+	r.GET("/api/v1/telemetry/live", telemetryCtrl.ServeWS)
+
 	r.Run(cfg.Server.Host + ":" + cfg.Server.Port)
 }
 
