@@ -29,10 +29,6 @@ func NewRouterRun(url string, dbpool *pgxpool.Pool, cfg *config.Config) {
 	r.Use(gin.Recovery())
 	r.Use(logger_m.GenLogger())
 
-	r.Use(auth_m.GenAuth(dbpool, cfg))
-
-	// r.GET("/users", get_users)
-
 	hub := telemetry.NewHub()
 	go hub.Run()
 
@@ -41,8 +37,13 @@ func NewRouterRun(url string, dbpool *pgxpool.Pool, cfg *config.Config) {
 		DB:  dbpool,
 	}
 
-	r.POST("/api/v1/telemetry", telemetryCtrl.IngestTelemetry)
 	r.GET("/api/v1/telemetry/live", telemetryCtrl.ServeWS)
+
+	r.Use(auth_m.GenAuth(dbpool, cfg))
+
+	// r.GET("/users", get_users)
+
+	r.POST("/api/v1/telemetry", telemetryCtrl.IngestTelemetry)
 
 	r.Run(cfg.Server.Host + ":" + cfg.Server.Port)
 }
