@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/qdrant/go-client/qdrant"
 )
 
 type user struct {
@@ -23,7 +24,7 @@ var users = []user{
 	{ID: "3", Name: "33"},
 }
 
-func NewRouterRun(url string, dbpool *pgxpool.Pool, cfg *config.Config) {
+func NewRouterRun(url string, dbpool *pgxpool.Pool, qdClient *qdrant.Client, cfg *config.Config) {
 	r := gin.New()
 
 	r.Use(gin.Recovery())
