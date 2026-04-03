@@ -1,0 +1,328 @@
+/* ===== GLOBAL ===== */
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: #020617;
+  color: white;
+}
+
+/* ===== HEADER ===== */
+.header {
+  text-align: center;
+  padding: 25px;
+  border-bottom: 1px solid #0ea5e9;
+}
+
+.header h1 {
+  color: #22d3ee;
+  letter-spacing: 2px;
+}
+
+.header p {
+  color: #94a3b8;
+}
+
+.nav-btn {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background: #38bdf8;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ===== GRID ===== */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* ===== PANELS ===== */
+.panel {
+  background: #020617;
+  border: 1px solid #1e293b;
+  padding: 20px;
+  border-radius: 12px;
+  transition: 0.3s;
+}
+
+.panel:hover {
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+}
+
+/* ===== LEFT ===== */
+.left p {
+  margin: 10px 0;
+  color: #cbd5f5;
+}
+
+/* ===== CENTER ===== */
+.center {
+  text-align: center;
+}
+
+.alert {
+  color: #f43f5e;
+}
+
+/* ===== CIRCLE (CORE VISUAL) ===== */
+.circle {
+  width: 220px;
+  height: 220px;
+  border: 10px solid #f43f5e;
+  border-radius: 50%;
+  margin: 25px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+
+  /* 🔥 GLOW */
+  box-shadow: 
+    0 0 20px rgba(244, 63, 94, 0.6),
+    0 0 40px rgba(244, 63, 94, 0.4),
+    inset 0 0 20px rgba(244, 63, 94, 0.2);
+}
+
+.center p {
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  width: 100%;
+  margin: 12px 0;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.green {
+  background: #22c55e;
+}
+.green:hover {
+  box-shadow: 0 0 15px #22c55e;
+}
+
+.blue {
+  background: #38bdf8;
+}
+.blue:hover {
+  box-shadow: 0 0 15px #38bdf8;
+}
+
+.red {
+  background: #f43f5e;
+}
+.red:hover {
+  box-shadow: 0 0 15px #f43f5e;
+}
+
+/* ===== ATTACK LOGS ===== */
+.logs {
+  margin: 20px;
+  padding: 20px;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  background: #020617;
+}
+
+.logs h3 {
+  margin-bottom: 10px;
+}
+
+.logs p {
+  font-family: monospace;
+  color: #38bdf8;
+  margin: 5px 0;
+}
+
+/* ===== STATS ===== */
+.stats {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+}
+
+.stat {
+  flex: 1;
+  padding: 20px;
+  background: #020617;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #1e293b;
+  transition: 0.3s;
+}
+
+.stat:hover {
+  transform: translateY(-5px);
+}
+
+/* COLORS + GLOW */
+.clean p {
+  color: #22c55e;
+  font-size: 24px;
+  text-shadow: 0 0 10px #22c55e;
+}
+
+.alert p {
+  color: #facc15;
+  font-size: 24px;
+  text-shadow: 0 0 10px #facc15;
+}
+
+.blocked p {
+  color: #f43f5e;
+  font-size: 24px;
+  text-shadow: 0 0 10px #f43f5e;
+}
+
+.monitored p {
+  color: #38bdf8;
+  font-size: 24px;
+  text-shadow: 0 0 10px #38bdf8;
+}
+
+/* ===== THREAT INTELLIGENCE ===== */
+
+.threat-section {
+  margin: 20px;
+  padding: 20px;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  background: #020617;
+
+  /* subtle glow */
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.1);
+}
+
+.threat-title {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #f43f5e;
+  letter-spacing: 2px;
+
+  /* 🔥 glow text */
+  text-shadow: 
+    0 0 10px rgba(244, 63, 94, 0.7),
+    0 0 20px rgba(244, 63, 94, 0.4);
+}
+
+.logs p {
+  font-family: monospace;
+  color: #38bdf8;
+  margin: 6px 0;
+
+  /* 🔥 glow pulse */
+  text-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(244, 63, 94, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+  }
+}
+
+.circle {
+  animation: pulse 2s infinite;
+}
+
+/* ===== RGB GLOW STATS ===== */
+
+.stat {
+  flex: 1;
+  padding: 20px;
+  background: #020617;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #1e293b;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 🔥 Hover lift */
+.stat:hover {
+  transform: translateY(-6px) scale(1.02);
+}
+
+/* ===== CLEAN (GREEN) ===== */
+.clean {
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.3);
+}
+.clean:hover {
+  box-shadow:
+    0 0 20px rgba(34, 197, 94, 0.7),
+    0 0 40px rgba(34, 197, 94, 0.4);
+}
+.clean p {
+  color: #22c55e;
+  text-shadow: 0 0 10px #22c55e;
+}
+
+/* ===== ALERTS (YELLOW) ===== */
+.alert {
+  box-shadow: 0 0 15px rgba(250, 204, 21, 0.3);
+}
+.alert:hover {
+  box-shadow:
+    0 0 20px rgba(250, 204, 21, 0.8),
+    0 0 40px rgba(250, 204, 21, 0.4);
+}
+.alert p {
+  color: #facc15;
+  text-shadow: 0 0 10px #facc15;
+}
+
+/* ===== BLOCKED (RED) ===== */
+.blocked {
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
+}
+.blocked:hover {
+  box-shadow:
+    0 0 20px rgba(244, 63, 94, 0.9),
+    0 0 50px rgba(244, 63, 94, 0.5);
+}
+.blocked p {
+  color: #f43f5e;
+  text-shadow: 0 0 10px #f43f5e;
+}
+
+/* ===== MONITORED (BLUE) ===== */
+.monitored {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+}
+.monitored:hover {
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.9),
+    0 0 50px rgba(56, 189, 248, 0.5);
+}
+.monitored p {
+  color: #38bdf8;
+  text-shadow: 0 0 10px #38bdf8;
+}
+
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 10px currentColor; }
+  50% { box-shadow: 0 0 25px currentColor; }
+  100% { box-shadow: 0 0 10px currentColor; }
+}
+
+.clean:hover,
+.alert:hover,
+.blocked:hover,
+.monitored:hover {
+  animation: glowPulse 1.5s infinite;
+}

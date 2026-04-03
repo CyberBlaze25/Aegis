@@ -1,0 +1,176 @@
+/* ===== GLOBAL ===== */
+.honeypod {
+  padding: 20px;
+  color: white;
+  background: #020617;
+  min-height: 100vh;
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* ===== HEADER ===== */
+.hp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.hp-header h1 {
+  color: #22d3ee;
+  text-shadow: 0 0 10px #22d3ee;
+  letter-spacing: 1px;
+}
+
+/* STATUS */
+.status {
+  font-weight: bold;
+}
+
+.status.green {
+  color: #22c55e;
+  text-shadow: 0 0 10px #22c55e;
+}
+
+.status.red {
+  color: #f43f5e;
+  text-shadow: 0 0 10px #f43f5e;
+}
+
+/* ===== SCORE ===== */
+.score-box {
+  margin-bottom: 25px;
+}
+
+.score-box h3 {
+  margin-bottom: 10px;
+}
+
+.score-bar {
+  height: 12px;
+  background: #1e293b;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f43f5e, #ff0000);
+  transition: 0.5s;
+  box-shadow: 0 0 15px #f43f5e;
+}
+
+.score-box p {
+  margin-top: 5px;
+  font-size: 14px;
+}
+
+/* ===== TABLE ===== */
+.hp-table {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+}
+
+/* HEADER */
+.table-header {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  padding: 14px;
+  color: #38bdf8;
+  font-weight: bold;
+  border-bottom: 1px solid #1e293b;
+}
+
+/* ROW */
+.log-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  padding: 12px;
+  border-bottom: 1px solid #1e293b;
+  transition: 0.2s;
+}
+
+/* HOVER */
+.log-row:hover {
+  background: rgba(56, 189, 248, 0.05);
+}
+
+/* NEW ENTRY FLASH */
+.log-row:first-child {
+  animation: flash 0.6s ease;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+/* FLASH ANIMATION */
+@keyframes flash {
+  from { background: rgba(244, 63, 94, 0.3); }
+  to { background: transparent; }
+}
+
+/* ===== ANOMALY (MAIN FEATURE) ===== */
+.anomaly {
+  color: #f43f5e;
+  background: rgba(244, 63, 94, 0.15);
+  animation: blink 0.6s infinite;
+  box-shadow:
+    0 0 10px #f43f5e,
+    0 0 25px rgba(244, 63, 94, 0.6);
+}
+
+/* BLINK */
+@keyframes blink {
+  0% { opacity: 1 }
+  50% { opacity: 0.5 }
+  100% { opacity: 1 }
+}
+
+/* ===== RISK COLORS ===== */
+.risk.low {
+  color: #22c55e;
+}
+
+.risk.medium {
+  color: #facc15;
+}
+
+.risk.high {
+  color: #f43f5e;
+  text-shadow: 0 0 8px #f43f5e;
+}
+
+/* ===== SIDE PANEL (OPTIONAL FUTURE USE) ===== */
+.hp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.card {
+  padding: 15px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+}
+
+.card.blue {
+  background: #1e3a8a;
+}
+
+.card.green {
+  background: #14532d;
+}
+
+.card.red {
+  background: #7f1d1d;
+}
+
+/* ===== TOP IP ===== */
+.top-ip {
+  display: flex;
+  justify-content: space-between;
+  background: #020617;
+  border: 1px solid #1e293b;
+  padding: 10px;
+  border-radius: 8px;
+}
