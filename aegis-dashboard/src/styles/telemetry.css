@@ -1,0 +1,112 @@
+/* MAIN CONTAINER */
+.telemetry {
+  background: radial-gradient(circle at top, #020617, #000000);
+  color: #e2e8f0;
+  min-height: 100vh;
+  padding: 20px;
+  font-family: "Courier New", monospace;
+}
+
+/* HEADER */
+.telemetry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.telemetry-header h1 {
+  color: #00d4ff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px #00d4ff88;
+}
+
+/* BUTTON */
+.telemetry-header button {
+  background: transparent;
+  border: 1px solid #00d4ff;
+  color: #00d4ff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.telemetry-header button:hover {
+  background: #00d4ff;
+  color: black;
+  box-shadow: 0 0 10px #00d4ff;
+}
+
+/* GRAPH BOX */
+.graph-box {
+  border: 1px solid #00d4ff55;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  padding: 10px;
+  background: linear-gradient(145deg, #020617, #000000);
+  box-shadow: 0 0 20px #00d4ff22 inset;
+  position: relative;
+}
+
+/* subtle glow border animation */
+.graph-box::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 20px #00d4ff22;
+}
+
+/* CANVAS */
+.graph-box canvas {
+  display: block;
+  margin: auto;
+}
+
+/* LOG PANEL */
+.log-box {
+  border: 1px solid #00d4ff55;
+  border-radius: 10px;
+  padding: 12px;
+  height: 260px;
+  overflow-y: auto;
+  background: linear-gradient(145deg, #020617, #000000);
+  box-shadow: 0 0 15px #00d4ff11 inset;
+}
+
+/* TITLE */
+.log-box h3 {
+  color: #00d4ff;
+  margin-bottom: 10px;
+  text-shadow: 0 0 8px #00d4ff66;
+}
+
+/* LOG LINES */
+.log {
+  border-bottom: 1px solid #1e293b;
+  padding: 5px;
+  font-size: 13px;
+  opacity: 0.85;
+  transition: 0.2s;
+}
+
+.log:hover {
+  background: #00d4ff11;
+  opacity: 1;
+}
+
+/* SCROLLBAR (CYBER STYLE) */
+.log-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.log-box::-webkit-scrollbar-thumb {
+  background: #00d4ff;
+  border-radius: 10px;
+}
+
+.log-box::-webkit-scrollbar-track {
+  background: #020617;
+}

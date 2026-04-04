@@ -1,56 +1,51 @@
-import "../styles/dashboard.css"
-import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import AttackLogs from "../components/AttackLogs"
+import "../styles/dashboard.css";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AttackLogs from "../components/AttackLogs";
+import { useSocket } from "../hooks/useSocket";
 
 function Dashboard() {
-
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   // 🔥 STATE
-  const [threatLevel, setThreatLevel] = useState(95)
-  const [status, setStatus] = useState("CRITICAL")
+  const [threatLevel, setThreatLevel] = useState(50);
+  const [status, setStatus] = useState("MONITORING");
 
   const [stats, setStats] = useState({
     clean: 847,
     alerts: 23,
     blocked: 156,
-    monitored: 12
-  })
+    monitored: 12,
+  });
 
-  // 🔥 API CONNECT
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/api/honeypot")
-        const data = await res.json()
+  // 🔌 REAL-TIME: Suspicion Score
+  useSocket("suspicion_score", (data) => {
+    if (!data) return;
 
-        const s = data?.stats || {}
-        const active = s.active || 0
+    const level = Math.floor((data.value || 0) * 100);
+    setThreatLevel(level);
 
-        setThreatLevel(Math.min(active * 10, 100))
+    if (level > 70) setStatus("CRITICAL");
+    else if (level > 40) setStatus("MONITORING");
+    else setStatus("SAFE");
+  });
 
-        setStats({
-          clean: 1000 - active,
-          alerts: active,
-          blocked: s.blocked || 0,
-          monitored: Math.floor(active / 2)
-        })
+  // 🔌 REAL-TIME: Events
+  useSocket("new_event", () => {
+    setStats((prev) => ({
+      ...prev,
+      alerts: prev.alerts + 1,
+      monitored: prev.monitored + 1,
+    }));
+  });
 
-        if (active > 10) setStatus("CRITICAL")
-        else if (active > 5) setStatus("MONITORING")
-        else setStatus("SAFE")
-
-      } catch (err) {
-        console.log("API error:", err)
-      }
-    }
-
-    fetchData()
-    const interval = setInterval(fetchData, 3000)
-    return () => clearInterval(interval)
-
-  }, [])
+  // 🔌 REAL-TIME: Honeypod
+  useSocket("honeypod_activity", () => {
+    setStats((prev) => ({
+      ...prev,
+      blocked: prev.blocked + 1,
+    }));
+  });
 
   return (
     <div className="dashboard">
@@ -60,13 +55,22 @@ function Dashboard() {
         <h1>AEGIS SENTINEL</h1>
         <p>Status: {status}</p>
 
-        {/* 🔥 HONEYPOD BUTTON */}
-        <button
-          className="nav-btn"
-          onClick={() => navigate("/honeypod")}
-        >
-          View Honeypod Activity
-        </button>
+        {/* 🔥 NAV BUTTONS */}
+        <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+          <button
+            className="nav-btn"
+            onClick={() => navigate("/honeypod")}
+          >
+            Honeypod
+          </button>
+
+          <button
+            className="nav-btn"
+            onClick={() => navigate("/telemetry")}
+          >
+            Telemetry
+          </button>
+        </div>
       </div>
 
       {/* ===== MAIN GRID ===== */}
@@ -135,7 +139,7 @@ function Dashboard() {
       </div>
 
     </div>
-  )
+  );
 }
 
-export default Dashboard
+export default Dashboard;
