@@ -16,8 +16,12 @@ type Config struct {
 	} `yaml:"qdrant"`
 
 	HFToken struct {
-		Token string `yaml:"tokrn"`
+		Token string `yaml:"token"`
 	} `yaml:"hf_token"`
+
+	Groq struct {
+		APIKEY string `yaml:"apikey"`
+	} `yaml:"groq"`
 
 	Modules struct {
 		Authentication struct {

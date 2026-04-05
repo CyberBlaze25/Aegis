@@ -34,8 +34,10 @@ func NewRouterRun(url string, dbpool *pgxpool.Pool, qdClient *qdrant.Client, cfg
 	go hub.Run()
 
 	telemetryCtrl := &telemetry.TelemetryController{
-		Hub: hub,
-		DB:  dbpool,
+		Hub:    hub,
+		DB:     dbpool,
+		Qdrant: qdClient,
+		Cfg: cfg,
 	}
 
 	r.GET("/api/v1/telemetry/live", telemetryCtrl.ServeWS)

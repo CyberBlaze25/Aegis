@@ -20,6 +20,9 @@ qdrant:
 hf_token:
   token: ${HF_TOKEN}
 
+groq:
+  apikey: ${GROQ_APIKEY}
+
 modules:
   authentication: # APPlICATION LEVEL
     enabled: false
