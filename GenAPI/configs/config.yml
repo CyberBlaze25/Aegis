@@ -13,6 +13,13 @@ auth:
   header_name: "API-KEY"
   ip_restriction: false
 
+qdrant:
+  host: "qdrant"
+  port: 6334
+
+hf_token:
+  token: ${HF_TOKEN}
+
 modules:
   authentication: # APPlICATION LEVEL
     enabled: false

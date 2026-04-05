@@ -27,7 +27,7 @@ func main() {
 	defer dbpool.Close()
 
 	// open a new VectorDB connection
-	qdrantClient, err := db.InitQdrant()
+	qdrantClient, err := db.InitQdrant(cfg.Qdrant.Host, cfg.Qdrant.Port)
 	if err != nil {
 		logger.Log.Error("Failed to connect to Qdrant VectorDB: %v", err)
 	}
