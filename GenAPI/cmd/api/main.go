@@ -26,6 +26,12 @@ func main() {
 	dbpool := db.OpenNewDbPool(os.Getenv("DB_URL"))
 	defer dbpool.Close()
 
+	// open a new VectorDB connection
+	qdrantClient, err := db.InitQdrant()
+	if err != nil {
+		logger.Log.Error("Failed to connect to Qdrant VectorDB: %v", err)
+	}
+
 	// Create and run the gin router with appropriate middlewares
-	router.NewRouterRun("0.0.0.0:8080", dbpool, cfg)
+	router.NewRouterRun("0.0.0.0:8080", dbpool, qdrantClient, cfg)
 }
