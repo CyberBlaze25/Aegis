@@ -1,127 +1,110 @@
-import "../styles/honeypot.css"
-import { useState, useEffect } from "react"
+import "../styles/dashboard.css";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSocket } from "../hooks/useSocket";
 
 function Honeypod() {
+  const navigate = useNavigate();
 
   // 🔥 STATE
-  const [logs, setLogs] = useState([])
-  const [score, setScore] = useState(0)
-  const [connected, setConnected] = useState(false)
+  const [activities, setActivities] = useState([]);
+  const [isolated, setIsolated] = useState(false);
 
-  useEffect(() => {
+  // 🔌 LISTEN: Honeypod Trigger
+  useSocket("honeypod_activity", (data) => {
+    setIsolated(true);
 
-    // 🔥 CONNECT WEBSOCKET
-    const socket = new WebSocket("ws://localhost:8080/api/v1/telemetry/live")
+    const log = {
+      time: new Date().toLocaleTimeString(),
+      process: data?.process || "malware.exe",
+      mutation: data?.mutation || "Unknown behavior detected",
+    };
 
-    // ✅ CONNECTED
-    socket.onopen = () => {
-      console.log("🟢 Connected to Sentinel")
-      setConnected(true)
-    }
-
-    // 🔥 RECEIVE DATA
-    socket.onmessage = (event) => {
-      try {
-        const threatData = JSON.parse(event.data)
-
-        console.log("⚡ TELEMETRY:", threatData)
-
-        // 🔥 ADD NEW LOG (top)
-        setLogs(prev => [threatData, ...prev].slice(0, 25))
-
-        // 🔥 UPDATE SCORE
-        if (threatData.score !== undefined) {
-          setScore(threatData.score)
-        }
-
-      } catch (err) {
-        console.error("Parse error:", err)
-      }
-    }
-
-    // ❌ DISCONNECTED
-    socket.onclose = () => {
-      console.log("🔴 Disconnected")
-      setConnected(false)
-    }
-
-    // ❌ ERROR
-    socket.onerror = (err) => {
-      console.error("Socket error:", err)
-    }
-
-    // 🧹 CLEANUP
-    return () => {
-      socket.close()
-    }
-
-  }, [])
+    setActivities((prev) => [log, ...prev].slice(0, 20));
+  });
 
   return (
-    <div className="honeypot">
+    <div className="dashboard">
 
-      {/* HEADER */}
-      <div className="hp-header">
-        <h1>Honeypod Activity</h1>
+      {/* ===== HEADER ===== */}
+      <div className="header">
+        <h1>HONEYPOD ISOLATION</h1>
+        <p>
+          Status:{" "}
+          {isolated
+            ? "ISOLATED ENVIRONMENT ACTIVE"
+            : "WAITING FOR THREAT"}
+        </p>
 
-        <span className={connected ? "status green" : "status red"}>
-          ● {connected ? "System Armed" : "Disconnected"}
-        </span>
+        <button
+          className="nav-btn"
+          onClick={() => navigate("/")}
+        >
+          Back to Dashboard
+        </button>
       </div>
 
-      {/* 🔥 SCORE DIAL */}
-      <div className="score-box">
+      {/* ===== MAIN GRID ===== */}
+      <div className="grid">
 
-        <h3>Threat Score</h3>
+        {/* LEFT PANEL */}
+        <div className="panel left">
+          <h3>ISOLATED PROCESS</h3>
 
-        <div className="score-bar">
-          <div
-            className="score-fill"
-            style={{ width: `${score}%` }}
-          ></div>
+          {isolated ? (
+            <>
+              <p className="danger">malware.exe</p>
+              <p>Container: honeypod_sandbox_01</p>
+              <p>Network: BLOCKED</p>
+              <p>Filesystem: FAKE</p>
+            </>
+          ) : (
+            <p>No threats isolated</p>
+          )}
         </div>
 
-        <p>{score}%</p>
+        {/* CENTER PANEL */}
+        <div className="panel center">
+          <h2 className="alert">ISOLATION STATUS</h2>
+
+          <div className="circle">
+            <span>{isolated ? "ACTIVE" : "IDLE"}</span>
+          </div>
+
+          <p>
+            {isolated
+              ? "Threat contained safely"
+              : "Monitoring system..."}
+          </p>
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="panel right">
+          <h3>ENVIRONMENT DETAILS</h3>
+          <p>OS: Simulated Linux</p>
+          <p>Privileges: Restricted</p>
+          <p>Outbound Traffic: Disabled</p>
+        </div>
 
       </div>
 
-      {/* 🔥 LIVE LOGS */}
-      <div className="hp-table">
+      {/* ===== ACTIVITY LOG ===== */}
+      <div className="threat-section">
+        <h2 className="threat-title">MALWARE BEHAVIOR LOG</h2>
 
-        <div className="table-header">
-          <span>PID</span>
-          <span>PROCESS</span>
-          <span>SYSCALL</span>
-          <span>STATUS</span>
-          <span>SCORE</span>
-          <span>TIME</span>
-        </div>
+        {activities.length === 0 && (
+          <p>No activity yet...</p>
+        )}
 
-        {logs.map((log, i) => (
-          <div
-            key={i}
-            className={`log-row ${log.is_anomalous ? "anomaly" : ""}`}
-          >
-            <span>{log.pid}</span>
-            <span>{log.process_name}</span>
-            <span>{log.syscall}</span>
-
-            <span>
-              {log.is_anomalous ? "THREAT" : "SAFE"}
-            </span>
-
-            <span>{log.score}</span>
-
-            <span>
-              {new Date().toLocaleTimeString()}
-            </span>
+        {activities.map((a, i) => (
+          <div key={i}>
+            [{a.time}] {a.process} → {a.mutation}
           </div>
         ))}
-
       </div>
 
     </div>
-  )
+  );
 }
 
-export default Honeypod
+export default Honeypod;

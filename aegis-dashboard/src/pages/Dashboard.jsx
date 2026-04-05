@@ -1,89 +1,61 @@
 import "../styles/dashboard.css"
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useSocket } from "../context/SocketContext"
 import AttackLogs from "../components/AttackLogs"
 
 function Dashboard() {
 
-  const navigate = useNavigate()
+  const { data } = useSocket()
 
-  // 🔥 STATE
-  const [threatLevel, setThreatLevel] = useState(95)
-  const [status, setStatus] = useState("CRITICAL")
+  const [threatLevel, setThreatLevel] = useState(0)
+  const [status, setStatus] = useState("SAFE")
 
   const [stats, setStats] = useState({
-    clean: 847,
-    alerts: 23,
-    blocked: 156,
-    monitored: 12
+    clean: 1000,
+    alerts: 0,
+    blocked: 0,
+    monitored: 0
   })
 
-  // 🔥 API CONNECT
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/api/honeypot")
-        const data = await res.json()
+    if (!data) return
 
-        const s = data?.stats || {}
-        const active = s.active || 0
+    const score = data.score || 0
 
-        setThreatLevel(Math.min(active * 10, 100))
+    setThreatLevel(score)
 
-        setStats({
-          clean: 1000 - active,
-          alerts: active,
-          blocked: s.blocked || 0,
-          monitored: Math.floor(active / 2)
-        })
+    if (score > 80) setStatus("CRITICAL")
+    else if (score > 50) setStatus("MONITORING")
+    else setStatus("SAFE")
 
-        if (active > 10) setStatus("CRITICAL")
-        else if (active > 5) setStatus("MONITORING")
-        else setStatus("SAFE")
+    setStats({
+      clean: 1000 - score,
+      alerts: score > 50 ? 1 : 0,
+      blocked: score > 80 ? 1 : 0,
+      monitored: Math.floor(score / 10)
+    })
 
-      } catch (err) {
-        console.log("API error:", err)
-      }
-    }
-
-    fetchData()
-    const interval = setInterval(fetchData, 3000)
-    return () => clearInterval(interval)
-
-  }, [])
+  }, [data])
 
   return (
     <div className="dashboard">
 
-      {/* ===== HEADER ===== */}
+      {/* HEADER */}
       <div className="header">
         <h1>AEGIS SENTINEL</h1>
         <p>Status: {status}</p>
-
-        {/* 🔥 HONEYPOD BUTTON */}
-        <button
-          className="nav-btn"
-          onClick={() => navigate("/honeypod")}
-        >
-          View Honeypod Activity
-        </button>
       </div>
 
-      {/* ===== MAIN GRID ===== */}
+      {/* GRID */}
       <div className="grid">
 
-        {/* LEFT PANEL */}
         <div className="panel left">
           <h3>ACTIVE PROCESSES</h3>
-          <p>chrome.exe - LOW</p>
-          <p>node.exe - LOW</p>
-          <p>python.exe - MEDIUM</p>
-          <p>powershell.exe - HIGH</p>
+          <p>{data?.pid || "No data"}</p>
         </div>
 
-        {/* CENTER PANEL */}
         <div className="panel center">
-          <h2 className="alert">SUSPICIOUS SYSCALL DETECTED</h2>
+          <h2 className="alert">SYSTEM THREAT LEVEL</h2>
 
           <div className="circle">
             <span>{threatLevel}</span>
@@ -92,38 +64,37 @@ function Dashboard() {
           <p>{status}</p>
         </div>
 
-        {/* RIGHT PANEL */}
         <div className="panel right">
-          <h3>RESPONSE ACTIONS</h3>
-
-          <button className="btn green">ALLOW</button>
-          <button className="btn blue">MONITOR</button>
-          <button className="btn red">ISOLATE</button>
+          <h3>RESPONSE</h3>
+          <p>
+            {status === "CRITICAL"
+              ? "ISOLATE"
+              : status === "MONITORING"
+              ? "MONITOR"
+              : "ALLOW"}
+          </p>
         </div>
 
       </div>
 
-      {/* ===== THREAT INTELLIGENCE ===== */}
-      <div className="threat-section">
-        <h2 className="threat-title">THREAT INTELLIGENCE</h2>
-        <AttackLogs />
-      </div>
+      {/* LOGS */}
+      <AttackLogs />
 
-      {/* ===== STATS ===== */}
+      {/* STATS */}
       <div className="stats">
 
         <div className="stat clean">
-          <h4>Clean Processes</h4>
+          <h4>Clean</h4>
           <p>{stats.clean}</p>
         </div>
 
         <div className="stat alert">
-          <h4>Alerts Today</h4>
+          <h4>Alerts</h4>
           <p>{stats.alerts}</p>
         </div>
 
         <div className="stat blocked">
-          <h4>Blocked Threats</h4>
+          <h4>Blocked</h4>
           <p>{stats.blocked}</p>
         </div>
 
