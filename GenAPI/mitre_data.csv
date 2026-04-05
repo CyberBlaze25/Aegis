@@ -1,0 +1,7 @@
+TacticID,Name,Description
+T1071,Application Layer Protocol,"Adversaries may communicate using application layer protocols to avoid detection or network filtering by blending in with existing traffic. Often used for Command and Control (C2)."
+T1571,Non-Standard Port,"Adversaries may communicate using a protocol that does not follow the expected standards for the port to bypass network filtering. Ports like 4444 or 1337 are highly indicative of this evasion technique."
+T1059.004,Unix Shell,"Adversaries may abuse Unix shell commands (bash, sh) and utilities (nc, python3) for execution and reverse shell connections routing to external IPs."
+T1190,Exploit Public-Facing Application,"Adversaries may attempt to take advantage of a weakness in an Internet-facing computer or program using software, data, or commands in order to cause unintended behavior."
+T1046,Network Service Discovery,"Adversaries may attempt to get a listing of services listening on remote hosts and local network infrastructure devices to identify potential vulnerabilities or map the Honeypod."
+T1498,Network Denial of Service,"Adversaries may perform Network Denial of Service (DoS) attacks to degrade or block the availability of targeted resources to users."

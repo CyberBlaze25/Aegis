@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"gentools/genapi/internal/core/logger"
@@ -9,10 +10,10 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func InitQdrant() (*qdrant.Client, error) {
+func InitQdrant(host string, port int) (*qdrant.Client, error) {
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host: "localhost",
-		Port: 6334,
+		Host: host,
+		Port: port,
 	})
 	if err != nil {
 		return nil, err
@@ -26,7 +27,7 @@ func InitQdrant() (*qdrant.Client, error) {
 		return nil, err
 	}
 
-	logger.Log.Info("Sentinel Instinct (Qdrant) Online. Version: %s", health.GetVersion())
+	logger.Log.Info("Sentinel Instinct (Qdrant) Online.", slog.Any("Version", health.GetVersion()))
 
 	collectionName := "mitre_ttps"
 
@@ -47,7 +48,7 @@ func InitQdrant() (*qdrant.Client, error) {
 			return nil, err
 		}
 
-		logger.Log.Info("Created new Qdrant collection %s", collectionName)
+		logger.Log.Info("Created new Qdrant collection", slog.Any("Name", collectionName))
 	}
 
 	return client, nil
