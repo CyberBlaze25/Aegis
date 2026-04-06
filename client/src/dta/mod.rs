@@ -17,6 +17,8 @@ pub(crate) mod tracker;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Event {
     pub pid: u32,
+    pub ppid: u32,
+    pub uid: u32,
     pub dest_ip: u32,
     pub dest_port: u16,
     pub pad: [u8; 2],
@@ -31,6 +33,8 @@ pub(crate) struct Tracker {
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct TelemetryPayload {
     pub pid: u32,
+    pub ppid: u32,
+    pub uid: u32,
     pub comm: String,
     pub dest_ip: String,
     pub dest_port: u16,

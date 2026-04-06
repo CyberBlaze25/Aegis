@@ -15,15 +15,17 @@ pub(crate) fn NewTracker(tx: mpsc::Sender<TelemetryPayload>) -> Tracker {
 
 pub(crate) fn Evaluate (tracker: &mut Tracker, event: &Event) {
     let pid = event.pid;
+    let ppid = event.ppid;
+    let uid = event.uid;
     let dest_ip = event.dest_ip;
     let dest_port = event.dest_port;
+
+    let is_system_user = uid <  1000;
 
     let score = tracker.scores.entry(pid).or_insert(0.5);
 
     let port = u16::from_be(dest_port);
     let ip = Ipv4Addr::from(u32::from_be(dest_ip));
-
-    *score += 0.05;
 
     let comm_bytes: Vec<u8> = event.comm.iter().take_while(|&&c| c != 0).copied().collect();
     let comm_string = String::from_utf8_lossy(&comm_bytes);
@@ -35,6 +37,16 @@ pub(crate) fn Evaluate (tracker: &mut Tracker, event: &Event) {
     if suspicious_ports.contains(&port) {
         is_anomalous = true;
         reason = format!("High-Risk Port ({})", port);
+
+        if is_system_user {
+            *score += 0.20;
+            reason.push_str(" | System-User Context")
+        }
+    }
+
+    if is_anomalous && ppid < 2 {
+        *score += 0.10;
+        reason.push_str(" | Orphaned/Root Process Lineage");
     }
 
     let suspicious_binaries = ["bash", "sh", "nc", "python3", "perl"];
@@ -53,6 +65,8 @@ pub(crate) fn Evaluate (tracker: &mut Tracker, event: &Event) {
 
         let payload = TelemetryPayload {
             pid,
+            ppid,
+            uid,
             comm: comm_string.to_string(),
             dest_ip: ip.to_string(),
             dest_port: port,
