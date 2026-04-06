@@ -64,7 +64,10 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			log.Println("✅ Sentinel: Embedding generated.")
 
 			mitreContext := "T1571: Non-Standard Port usage detected."
-			telemetryStr := fmt.Sprintf("PID %d (%s) -> %s:%d", p.PID, p.Comm, p.DestIP, p.DestPort)
+			telemetryStr := fmt.Sprintf(
+				"PID: %d | PPID: %d | UID: %d | Comm: %s | Dest: %s:%d | Reason: %s",
+				p.PID, p.PPID, p.UID, p.Comm, p.DestIP, p.DestPort, p.Reason,
+			)
 
 			// 2. Evaluate Threat
 			analysis, err := ai.EvalThreat(tc.Cfg, telemetryStr, mitreContext)
