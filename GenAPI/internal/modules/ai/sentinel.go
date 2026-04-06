@@ -25,14 +25,17 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	systemPrompt := `You are the Aegis Sentinel AI. You must respond ONLY in valid JSON.
-	Analyze the telemetry against MITRE TTPs. 
-	JSON Schema:
+	systemPrompt := `You are the Aegis Sentinel AI, a kernel-level threat hunter.
+	Analyze the following telemetry using these heuristics:
+	1. USER CONTEXT: UID 0 is root (high risk if unexpected). UID 33/1000 are usually service/local users.
+	2. LINEAGE: If a network tool (curl/wget) is spawned by a web server (apache/nginx/php), it is likely a Web Shell or RCE.
+	3. ABNORMALITY: Compare the process name, its parent, and the destination port.
+
+	Respond ONLY in JSON:
 	{
-		"crs": (float between 0.0 and 1.0),
-		"verdict": (max 10 words string)
-	}
-	Strictly ensure "crs" is a decimal number.`
+		"crs": <float 0.0-1.0>,
+		"verdict": "<short context-aware string>"
+	}`
 
 	userPrompt := fmt.Sprintf("Telemetry: %s\nMITRE Context: %s", telemetry, mitreContext)
 

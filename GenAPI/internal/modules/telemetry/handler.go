@@ -16,6 +16,8 @@ import (
 
 type TelemetryPayload struct {
 	PID         uint32  `json:"pid"`
+	PPID        uint32  `json:"ppid"`
+	UID         uint32  `json:"uid"`
 	Comm        string  `json:"comm"`
 	DestIP      string  `json:"dest_ip"`
 	DestPort    uint16  `json:"dest_port"`
