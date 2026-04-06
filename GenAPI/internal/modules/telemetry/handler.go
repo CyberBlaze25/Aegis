@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -56,14 +57,34 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			log.Println("🧠 Sentinel is thinking...")
 
 			// 1. Get embedding (Using _ because we aren't using the vector yet)
-			_, err := ai.GetEmbedding(*tc.Cfg, p.Reason) // Changed 'vector' to '_' to satisfy compiler
+			vector, err := ai.GetEmbedding(*tc.Cfg, p.Reason) // Changed 'vector' to '_' to satisfy compiler
 			if err != nil {
 				log.Printf("❌ Sentinel: Embedding failed: %v", err)
 				return
 			}
 			log.Println("✅ Sentinel: Embedding generated.")
 
-			mitreContext := "T1571: Non-Standard Port usage detected."
+			mitreContext := "General network activity"
+			ctx := context.Background()
+
+			searchResult, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
+				CollectionName: "mitre_ttps",
+				Query:          qdrant.NewQuery(vector...),
+				Limit:          &[]uint64{1}[0], // Top 1 match
+				WithPayload:    qdrant.NewWithPayload(true),
+			})
+
+			if err == nil && len(searchResult) > 0 {
+				payload := searchResult[0].Payload
+				// Safely extract the tactic ID and description from the Qdrant payload
+				tacticID := payload["tactic_id"].GetStringValue()
+				desc := payload["description"].GetStringValue()
+				mitreContext = fmt.Sprintf("%s: %s", tacticID, desc)
+				log.Printf("🔍 Qdrant Match: %s", tacticID)
+			} else {
+				log.Printf("⚠️ Qdrant search issue: %v", err)
+			}
+
 			telemetryStr := fmt.Sprintf(
 				"PID: %d | PPID: %d | UID: %d | Comm: %s | Dest: %s:%d | Reason: %s",
 				p.PID, p.PPID, p.UID, p.Comm, p.DestIP, p.DestPort, p.Reason,
