@@ -24,17 +24,18 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	systemPrompt := `You are the Aegis Sentinel AI, a kernel-level threat hunter.
-	Analyze the following telemetry using these heuristics:
-	1. USER CONTEXT: UID 0 is root (high risk if unexpected). UID 33/1000 are usually service/local users.
-	2. LINEAGE: If a network tool (curl/wget) is spawned by a web server (apache/nginx/php), it is likely a Web Shell or RCE.
-	3. ABNORMALITY: Compare the process name, its parent, and the destination port.
+	
+	systemPrompt := `You are the Aegis Sentinel AI. Evaluate the network telemetry and assign a Contextual Risk Score (crs) from 0.0 to 1.0.
+	
+	You MUST use this strict scoring rubric:
+	- 0.1 to 0.3 (LOW): Developer/Admin testing. Triggered if UID is 1000+ AND the parent process is a terminal/shell (bash, zsh, tmux).
+	- 0.4 to 0.6 (MEDIUM): Suspicious but unconfirmed. (e.g., unexpected port but run by a known user).
+	- 0.7 to 1.0 (CRITICAL): Actual Exploits. Triggered if UID is a system user (like 33/www-data) spawning network tools, OR orphaned processes (PPID < 2), OR clear C2 beaconing.
 
 	Respond ONLY in JSON:
 	{
-		"crs": <float 0.0-1.0>,
-		"verdict": "<short context-aware string>"
+		"crs": <float>,
+		"verdict": "<short explanation tying back to the rubric>"
 	}`
 
 	userPrompt := fmt.Sprintf("Telemetry: %s\nMITRE Context: %s", telemetry, mitreContext)
