@@ -1,30 +1,17 @@
 package router
 
 import (
-	"net/http"
-
 	config "gentools/genapi/configs"
+	"gentools/genapi/internal/core/db"
 	auth_m "gentools/genapi/internal/middleware/auth_m"
 	logger_m "gentools/genapi/internal/middleware/logger"
 	"gentools/genapi/internal/modules/telemetry"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qdrant/go-client/qdrant"
 )
 
-type user struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-var users = []user{
-	{ID: "1", Name: "11"},
-	{ID: "2", Name: "22"},
-	{ID: "3", Name: "33"},
-}
-
-func NewRouterRun(url string, dbpool *pgxpool.Pool, qdClient *qdrant.Client, cfg *config.Config) {
+func NewRouterRun(url string, db *db.PGX, qdClient *qdrant.Client, cfg *config.Config) {
 	r := gin.New()
 
 	r.Use(gin.Recovery())
@@ -35,22 +22,16 @@ func NewRouterRun(url string, dbpool *pgxpool.Pool, qdClient *qdrant.Client, cfg
 
 	telemetryCtrl := &telemetry.TelemetryController{
 		Hub:    hub,
-		DB:     dbpool,
+		DB:     db,
 		Qdrant: qdClient,
-		Cfg: cfg,
+		Cfg:    cfg,
 	}
 
 	r.GET("/api/v1/telemetry/live", telemetryCtrl.ServeWS)
+	r.GET("/api/v1/telemetry/history", telemetryCtrl.GetHistory)
 
-	r.Use(auth_m.GenAuth(dbpool, cfg))
-
-	// r.GET("/users", get_users)
-
+	r.Use(auth_m.GenAuth(db.Pool, cfg))
 	r.POST("/api/v1/telemetry", telemetryCtrl.IngestTelemetry)
 
 	r.Run(cfg.Server.Host + ":" + cfg.Server.Port)
-}
-
-func get_users(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, users)
 }

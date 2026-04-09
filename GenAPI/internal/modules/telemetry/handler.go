@@ -2,16 +2,20 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"time"
 
 	config "gentools/genapi/configs"
+	"gentools/genapi/internal/core/db"
+	"gentools/genapi/internal/core/logger"
 	"gentools/genapi/internal/modules/ai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -29,7 +33,7 @@ type TelemetryPayload struct {
 
 type TelemetryController struct {
 	Hub    *Hub
-	DB     *pgxpool.Pool
+	DB     *db.PGX
 	Qdrant *qdrant.Client
 	Cfg    *config.Config
 }
@@ -51,18 +55,16 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 
 	// TODO: log the is_anomalous payload into pgsqlDB
 
-	log.Printf("📥 Telemetry received: PID=%d, Anomalous=%v", payload.PID, payload.IsAnomalous)
+	log.Printf("Telemetry received: PID=%d, Anomalous=%v", payload.PID, payload.IsAnomalous)
 	if payload.IsAnomalous {
 		go func(p TelemetryPayload) {
-			log.Println("🧠 Sentinel is thinking...")
-
 			// 1. Get embedding (Using _ because we aren't using the vector yet)
 			vector, err := ai.GetEmbedding(*tc.Cfg, p.Reason) // Changed 'vector' to '_' to satisfy compiler
 			if err != nil {
-				log.Printf("❌ Sentinel: Embedding failed: %v", err)
+				log.Printf("Sentinel: Embedding failed: %v", err)
 				return
 			}
-			log.Println("✅ Sentinel: Embedding generated.")
+			log.Println("Sentinel: Embedding generated.")
 
 			mitreContext := "General network activity"
 			ctx := context.Background()
@@ -80,9 +82,8 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 				tacticID := payload["tactic_id"].GetStringValue()
 				desc := payload["description"].GetStringValue()
 				mitreContext = fmt.Sprintf("%s: %s", tacticID, desc)
-				log.Printf("🔍 Qdrant Match: %s", tacticID)
 			} else {
-				log.Printf("⚠️ Qdrant search issue: %v", err)
+				log.Printf("Qdrant search issue: %v", err)
 			}
 
 			telemetryStr := fmt.Sprintf(
@@ -93,7 +94,7 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			// 2. Evaluate Threat
 			analysis, err := ai.EvalThreat(tc.Cfg, telemetryStr, mitreContext)
 			if err != nil {
-				log.Printf("❌ Sentinel Brain Error: %v", err)
+				log.Printf("Sentinel Brain Error: %v", err)
 				return
 			}
 
@@ -102,16 +103,62 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			p.Reason = analysis.Verdict
 			tc.Hub.Broadcast <- p
 
-			log.Printf("🎯 SENTINEL VERDICT: Score=%f, Verdict=%s", analysis.Score, analysis.Verdict)
+			log.Printf("SENTINEL VERDICT: Score=%f, Verdict=%s", analysis.Score, analysis.Verdict)
 
 			if p.Score >= 0.7 {
-				log.Printf("🚨 CRITICAL THREAT: Isolating PID %d", p.PID)
+				log.Printf("CRITICAL THREAT: Isolating PID %d", p.PID)
 				// Trigger Isolation Logic here
 			}
 		}(payload)
 	}
 
+	record := db.TelemetryRecord{
+		Timestamp: time.Now(),
+		PID:       int(payload.PID),
+		PPID:      int(payload.PPID),
+		UID:       int(payload.UID),
+		Comm:      payload.Comm,
+		DestIP:    payload.DestIP,
+		DestPort:  int(payload.DestPort),
+		Score:     payload.Score,
+		Reason:    payload.Reason,
+	}
+
+	tc.Hub.Broadcast <- record
+
+	go func(rec db.TelemetryRecord) {
+		// We use context.Background() here because this goroutine should
+		// complete even if the HTTP request that triggered it is closed early.
+		err := tc.DB.InsertTelemetry(context.Background(), rec)
+		if err != nil {
+			logger.Log.Error("DB Write Failed", slog.Any("Error", err))
+		}
+	}(record)
+
 	c.JSON(http.StatusOK, gin.H{"status": "ingested", "messege": "Telemetry processed"})
+}
+
+func (tc *TelemetryController) GetHistory(c *gin.Context) {
+	w := c.Writer
+	r := c.Request
+
+	records, err := tc.DB.GetTelemetryHistory(r.Context(), 50)
+	if err != nil {
+		logger.Log.Error("Failed to fetch history", slog.Any("Error", err))
+		http.Error(w, "Failed to fetch history", http.StatusInternalServerError)
+		return
+	}
+
+	if records == nil {
+		records = []db.TelemetryRecord{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*") // Handle CORS for local dev
+
+	if err := json.NewEncoder(w).Encode(records); err != nil {
+		logger.Log.Error("Failed to encode history JSON", slog.Any("Error", err))
+	}
 }
 
 func (tc *TelemetryController) ServeWS(c *gin.Context) {

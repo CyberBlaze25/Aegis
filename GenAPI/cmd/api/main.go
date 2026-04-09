@@ -24,7 +24,7 @@ func main() {
 
 	// Open a new global dbpool and close it when out of scope
 	dbpool := db.OpenNewDbPool(os.Getenv("DB_URL"))
-	defer dbpool.Close()
+	defer dbpool.Pool.Close()
 
 	// open a new VectorDB connection
 	qdrantClient, err := db.InitQdrant(cfg.Qdrant.Host, cfg.Qdrant.Port)
