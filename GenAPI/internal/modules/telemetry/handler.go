@@ -13,6 +13,7 @@ import (
 	"gentools/genapi/internal/core/db"
 	"gentools/genapi/internal/core/logger"
 	"gentools/genapi/internal/modules/ai"
+	"gentools/genapi/internal/modules/brazil"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -47,13 +48,13 @@ var upgrader = websocket.Upgrader{
 func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 	var payload TelemetryPayload
 
+	brazil := brazil.NewBrazilProtocol("172.18.0.5", "4444")
+
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid telemetry payload"})
 	}
 
 	tc.Hub.Broadcast <- payload
-
-	// TODO: log the is_anomalous payload into pgsqlDB
 
 	log.Printf("Telemetry received: PID=%d, Anomalous=%v", payload.PID, payload.IsAnomalous)
 	if payload.IsAnomalous {
@@ -105,9 +106,21 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 
 			log.Printf("SENTINEL VERDICT: Score=%f, Verdict=%s", analysis.Score, analysis.Verdict)
 
-			if p.Score >= 0.7 {
+			if p.Score >= 0.8 {
 				log.Printf("CRITICAL THREAT: Isolating PID %d", p.PID)
-				// Trigger Isolation Logic here
+				go func(pID int, dPort int) {
+					err := brazil.RedirectToHoneypod(pID, dPort)
+					if err != nil {
+						logger.Log.Error("Failed to trigger Mirage", slog.Any("Error", err))
+					}
+				}(int(payload.PID), int(payload.DestPort))
+			} else if p.Score >= 0.70 {
+				go func(pID int) {
+					err := brazil.IsolatePID(pID)
+					if err != nil {
+						logger.Log.Error("Failed to Microsegment", slog.Any("Error", err))
+					}
+				}(int(payload.PID))
 			}
 		}(payload)
 	}
