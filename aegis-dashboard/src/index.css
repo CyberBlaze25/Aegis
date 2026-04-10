@@ -8,6 +8,7 @@ html, body, #root {
   color: white;
   font-family: "Segoe UI", sans-serif;
   overflow-x: hidden;
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 }
 
 /* ===== FIX BUTTON PROPERLY ===== */
@@ -32,6 +33,7 @@ button:hover {
   background: #0ea5e9;
   color: black;
 }
+
 
 /* ===== SAFETY RESET ===== */
 * {
