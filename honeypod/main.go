@@ -54,9 +54,9 @@ func main() {
 func handleTrap(conn net.Conn) {
 	defer conn.Close()
 	buffer := make([]byte, 4096)
-	
+
 	// Send a fake prompt so the malware thinks it successfully connected to a shell
-	conn.Write([]byte("root@ubuntu:~# ")) 
+	conn.Write([]byte("root@ubuntu:~# "))
 
 	n, err := conn.Read(buffer)
 	if err != nil || n == 0 {
@@ -64,14 +64,14 @@ func handleTrap(conn net.Conn) {
 	}
 
 	rawText := string(buffer[:n])
-	
+
 	mu.Lock()
 	payloads = append([]InterceptedPayload{{
 		Timestamp: time.Now(),
 		SourceIP:  conn.RemoteAddr().String(),
 		Data:      rawText,
 	}}, payloads...) // Prepend so newest is first
-	
+
 	// Keep max 50 payloads in memory
 	if len(payloads) > 50 {
 		payloads = payloads[:50]
