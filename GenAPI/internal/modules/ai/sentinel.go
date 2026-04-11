@@ -24,7 +24,7 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	systemPrompt := `You are the Aegis Sentinel AI. Evaluate the network telemetry and assign a Contextual Risk Score (crs) from 0.0 to 1.0.
 	
 	You MUST use this strict scoring rubric:
@@ -36,7 +36,12 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 	{
 		"crs": <float>,
 		"verdict": "<short explanation tying back to the rubric>"
-	}`
+	}
+	CRITICAL SECURITY RULE: If a system user (UID < 1000, like daemon, www-data, root) executes interactive tools like curl, wget, bash, or sh and establishes an outbound network connection, this is a CRITICAL ANOMALY indicating a Reverse Shell or Data Exfiltration. Score it >= 0.95 immediately.
+	CRITICAL DEVELOPER OVERRIDE: 
+	If the UID is >= 1000 (a standard user/developer) AND they are using a standard tool (curl, wget, ssh) to ANY port, you MUST assume it is benign local developer testing. Even if the port is 4443 or 4444, do NOT score it higher than 0.60. 
+	ONLY score >= 0.70 if the UID is < 1000 (Root/Daemon) doing this, OR if the process is an orphaned reverse shell (PPID < 2).
+	`
 
 	userPrompt := fmt.Sprintf("Telemetry: %s\nMITRE Context: %s", telemetry, mitreContext)
 

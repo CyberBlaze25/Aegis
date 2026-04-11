@@ -20,16 +20,24 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
+// 1. UPDATED STRUCT: Matches the new eBPF probe and holds the AI Verdict
 type TelemetryPayload struct {
-	PID         uint32  `json:"pid"`
-	PPID        uint32  `json:"ppid"`
-	UID         uint32  `json:"uid"`
-	Comm        string  `json:"comm"`
-	DestIP      string  `json:"dest_ip"`
-	DestPort    uint16  `json:"dest_port"`
-	IsAnomalous bool    `json:"is_anomalous"`
-	Reason      string  `json:"reason"`
-	Score       float64 `json:"score"`
+	EventType int     `json:"event_type"` // 1 = Network, 2 = Execution
+	PID       int     `json:"pid"`
+	PPID      int     `json:"ppid"`
+	UID       int     `json:"uid"`
+	Comm      string  `json:"comm"`
+	Filename  string  `json:"filename,omitempty"`
+	DestIP    string  `json:"dest_ip,omitempty"`
+	DestPort  int     `json:"dest_port,omitempty"`
+	Score     float64 `json:"score"`  // Added so React can read the score
+	Reason    string  `json:"reason"` // Added so React can read the verdict
+}
+
+// 2. NEW STRUCT: For the Honeypod to send captured payloads to the AI
+type HoneypodPayload struct {
+	SourceIP string `json:"source_ip"`
+	Data     string `json:"data"`
 }
 
 type TelemetryController struct {
@@ -45,119 +53,192 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// ==========================================
+// ENDPOINT 1: TELEMETRY INGESTION & DEFENSE
+// ==========================================
 func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 	var payload TelemetryPayload
-
-	brazil := brazil.NewBrazilProtocol("172.18.0.5", "4444")
+	brazilProto := &brazil.BrazilProtocol{
+		HoneypodIP:   "172.18.0.5",
+		HoneypodPort: "4444",
+	}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid telemetry payload"})
+		return
 	}
 
 	tc.Hub.Broadcast <- payload
 
-	log.Printf("Telemetry received: PID=%d, Anomalous=%v", payload.PID, payload.IsAnomalous)
-	if payload.IsAnomalous {
-		go func(p TelemetryPayload) {
-			// 1. Get embedding (Using _ because we aren't using the vector yet)
-			vector, err := ai.GetEmbedding(*tc.Cfg, p.Reason) // Changed 'vector' to '_' to satisfy compiler
-			if err != nil {
-				log.Printf("Sentinel: Embedding failed: %v", err)
-				return
-			}
-			log.Println("Sentinel: Embedding generated.")
+	// 1. Build a behavioral string based on the Event Type
+	var behaviorStr string
+	if payload.EventType == 2 { // EXECVE
+		behaviorStr = fmt.Sprintf("Process spawned: UID %d executed %s via %s", payload.UID, payload.Filename, payload.Comm)
+	} else { // CONNECT
+		behaviorStr = fmt.Sprintf("Network connect: UID %d process %s connecting to %s:%d", payload.UID, payload.Comm, payload.DestIP, payload.DestPort)
+	}
 
-			mitreContext := "General network activity"
-			ctx := context.Background()
+	go func(p TelemetryPayload, bStr string) {
+		ctx := context.Background()
 
-			searchResult, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
+		// 2. Vectorize the behavior for Qdrant
+		vector, err := ai.GetEmbedding(*tc.Cfg, bStr)
+		if err != nil {
+			logger.Log.Error("Embedding failed", slog.Any("Error", err))
+			return
+		}
+
+		// ---------------------------------------------------------
+		// 🔴 THE QDRANT REFLEX (Zero-Day Immunity Check)
+		// ---------------------------------------------------------
+		// Before calling the slow LLM, check if we've seen this exact behavior trap before!
+		reflexMatch, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
+			CollectionName: "aegis_signatures",
+			Query:          qdrant.NewQuery(vector...),
+			Limit:          &[]uint64{1}[0],
+			WithPayload:    qdrant.NewWithPayload(true),
+		})
+
+		// If Qdrant returns a highly similar match (> 0.90), bypass the LLM entirely!
+		if err == nil && len(reflexMatch) > 0 && reflexMatch[0].Score > 0.90 {
+			p.Score = 1.00
+			p.Reason = "QDRANT REFLEX: Known Malicious Behavioral Signature Match (Auto-Isolated)"
+			logger.Log.Warn("⚡ QDRANT REFLEX TRIGGERED. Bypassing LLM.", slog.Int("PID", p.PID))
+
+			// Trigger Brazil Protocol immediately
+			brazilProto.RedirectToHoneypod(p.PID, p.DestPort)
+
+		} else {
+			// ---------------------------------------------------------
+			// 🟡 THE SLOW PATH (LLM Evaluation)
+			// ---------------------------------------------------------
+			mitreContext := "General anomalous activity"
+
+			// Optional: Fetch MITRE Context from your other collection
+			mitreResult, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
 				CollectionName: "mitre_ttps",
 				Query:          qdrant.NewQuery(vector...),
-				Limit:          &[]uint64{1}[0], // Top 1 match
+				Limit:          &[]uint64{1}[0],
 				WithPayload:    qdrant.NewWithPayload(true),
 			})
 
-			if err == nil && len(searchResult) > 0 {
-				payload := searchResult[0].Payload
-				// Safely extract the tactic ID and description from the Qdrant payload
-				tacticID := payload["tactic_id"].GetStringValue()
-				desc := payload["description"].GetStringValue()
+			if err == nil && len(mitreResult) > 0 {
+				mPayload := mitreResult[0].Payload
+				tacticID := mPayload["tactic_id"].GetStringValue()
+				desc := mPayload["description"].GetStringValue()
 				mitreContext = fmt.Sprintf("%s: %s", tacticID, desc)
-			} else {
-				log.Printf("Qdrant search issue: %v", err)
 			}
 
-			telemetryStr := fmt.Sprintf(
-				"PID: %d | PPID: %d | UID: %d | Comm: %s | Dest: %s:%d | Reason: %s",
-				p.PID, p.PPID, p.UID, p.Comm, p.DestIP, p.DestPort, p.Reason,
-			)
-
-			// 2. Evaluate Threat
-			analysis, err := ai.EvalThreat(tc.Cfg, telemetryStr, mitreContext)
+			// Ask the LLM
+			analysis, err := ai.EvalThreat(tc.Cfg, bStr, mitreContext)
 			if err != nil {
-				log.Printf("Sentinel Brain Error: %v", err)
+				logger.Log.Error("Sentinel Brain Error", slog.Any("Error", err))
 				return
 			}
 
-			// 3. Update payload and broadcast
 			p.Score = analysis.Score
 			p.Reason = analysis.Verdict
-			tc.Hub.Broadcast <- p
 
-			log.Printf("SENTINEL VERDICT: Score=%f, Verdict=%s", analysis.Score, analysis.Verdict)
+			logger.Log.Info("🧠 SENTINEL VERDICT",
+				slog.Float64("Score", p.Score),
+				slog.String("Reason", p.Reason),
+				slog.Int("PID", p.PID),
+			)
 
-			if p.Score >= 0.8 {
-				log.Printf("CRITICAL THREAT: Isolating PID %d", p.PID)
-				go func(pID int, dPort int) {
-					err := brazil.RedirectToHoneypod(pID, dPort)
-					if err != nil {
-						logger.Log.Error("Failed to trigger Mirage", slog.Any("Error", err))
-					}
-				}(int(payload.PID), int(payload.DestPort))
+			// Apply Brazil Protocol based on LLM Score
+			if p.Score >= 0.90 {
+				log.Printf("🔴 DEFCON 1: Isolating PID %d to Honeypod", p.PID)
+				brazilProto.RedirectToHoneypod(p.PID, p.DestPort)
 			} else if p.Score >= 0.70 {
-				go func(pID int) {
-					err := brazil.IsolatePID(pID)
-					if err != nil {
-						logger.Log.Error("Failed to Microsegment", slog.Any("Error", err))
-					}
-				}(int(payload.PID))
+				log.Printf("🟡 DEFCON 2: Microsegmenting PID %d", p.PID)
+				brazilProto.IsolatePID(p.PID)
 			}
-		}(payload)
-	}
+		}
 
-	record := db.TelemetryRecord{
-		Timestamp: time.Now(),
-		PID:       int(payload.PID),
-		PPID:      int(payload.PPID),
-		UID:       int(payload.UID),
-		Comm:      payload.Comm,
-		DestIP:    payload.DestIP,
-		DestPort:  int(payload.DestPort),
-		Score:     payload.Score,
-		Reason:    payload.Reason,
-	}
+		// 3. Broadcast to React and Save to Postgres
+		tc.Hub.Broadcast <- p
 
-	tc.Hub.Broadcast <- record
+		record := db.TelemetryRecord{
+			Timestamp: time.Now(),
+			PID:       p.PID,
+			PPID:      p.PPID,
+			UID:       p.UID,
+			Comm:      p.Comm,
+			DestIP:    p.DestIP,
+			DestPort:  p.DestPort,
+			Score:     p.Score,
+			Reason:    p.Reason,
+		}
 
-	go func(rec db.TelemetryRecord) {
-		// We use context.Background() here because this goroutine should
-		// complete even if the HTTP request that triggered it is closed early.
-		err := tc.DB.InsertTelemetry(context.Background(), rec)
-		if err != nil {
+		if err := tc.DB.InsertTelemetry(context.Background(), record); err != nil {
 			logger.Log.Error("DB Write Failed", slog.Any("Error", err))
 		}
-	}(record)
+	}(payload, behaviorStr)
 
-	c.JSON(http.StatusOK, gin.H{"status": "ingested", "messege": "Telemetry processed"})
+	c.JSON(http.StatusOK, gin.H{"status": "ingested"})
 }
 
+// ==========================================
+// ENDPOINT 2: HONEYPOD WEBHOOK (The Intelligence Loop)
+// ==========================================
+func (tc *TelemetryController) IngestHoneypodWebhook(c *gin.Context) {
+	var hp HoneypodPayload
+	if err := c.ShouldBindJSON(&hp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid honeypod payload"})
+		return
+	}
+
+	logger.Log.Info("🍯 HONEYPOD PAYLOAD RECEIVED", slog.String("Data", hp.Data))
+
+	go func(data string, sourceIP string) {
+		ctx := context.Background()
+		brazilProto := brazil.NewBrazilProtocol("172.18.0.5", "4444") // Ensure IP matches your Honeypod
+		brazilProto := brazil.NewBrazilProtocol("172.18.0.5", "4444") // Ensure IP matches your Honeypod
+
+		// 1. Convert the captured malware payload into a mathematical vector
+		vector, err := ai.GetEmbedding(*tc.Cfg, data)
+		if err != nil {
+			logger.Log.Error("Failed to vectorize honeypod payload", slog.Any("Error", err))
+			return
+		}
+
+		// 2. Save it to Qdrant as a permanent Immune Signature
+		points := []*qdrant.PointStruct{
+			{
+				Id:      qdrant.NewIDNum(uint64(time.Now().UnixNano())), // Unique ID
+				Vectors: qdrant.NewVectorsDense(vector),
+				Payload: qdrant.NewValueMap(map[string]any{
+					"raw_payload": data,
+					"source_ip":   sourceIP,
+					"timestamp":   time.Now().Format(time.RFC3339),
+				}),
+			},
+		}
+
+		_, err = tc.Qdrant.Upsert(ctx, &qdrant.UpsertPoints{
+			CollectionName: "aegis_signatures",
+			Points:         points,
+		})
+
+		if err != nil {
+			logger.Log.Error("Failed to sync signature to Qdrant", slog.Any("Error", err))
+		} else {
+			logger.Log.Info("✅ IMMUNITY ACHIEVED: Signature synced to Qdrant!")
+		}
+	}(hp.Data, hp.SourceIP)
+
+	c.JSON(http.StatusOK, gin.H{"status": "Vectorized and stored"})
+}
+
+// ==========================================
+// ENDPOINT 3 & 4: HISTORY & WEBSOCKETS
+// ==========================================
 func (tc *TelemetryController) GetHistory(c *gin.Context) {
 	w := c.Writer
 	r := c.Request
 
 	records, err := tc.DB.GetTelemetryHistory(r.Context(), 50)
 	if err != nil {
-		logger.Log.Error("Failed to fetch history", slog.Any("Error", err))
 		http.Error(w, "Failed to fetch history", http.StatusInternalServerError)
 		return
 	}
@@ -167,11 +248,9 @@ func (tc *TelemetryController) GetHistory(c *gin.Context) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*") // Handle CORS for local dev
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	if err := json.NewEncoder(w).Encode(records); err != nil {
-		logger.Log.Error("Failed to encode history JSON", slog.Any("Error", err))
-	}
+	json.NewEncoder(w).Encode(records)
 }
 
 func (tc *TelemetryController) ServeWS(c *gin.Context) {
@@ -179,6 +258,5 @@ func (tc *TelemetryController) ServeWS(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	// Register the new frontend connection with the Hub
 	tc.Hub.register <- conn
 }
