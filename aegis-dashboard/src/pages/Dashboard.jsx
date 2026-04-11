@@ -10,8 +10,6 @@ function Dashboard() {
 
   const [threatLevel, setThreatLevel] = useState(0)
   const [status, setStatus] = useState("SAFE")
-
-  // Counters for the footer
   const [stats, setStats] = useState({
     scanned: 0,
     alerts: 0,
@@ -20,130 +18,139 @@ function Dashboard() {
 
   useEffect(() => {
     if (!data) return
-
     const score = Math.round((data.score || 0) * 100)
     setThreatLevel(score)
-
-    // Update status based on our agreed thresholds
     if (score >= 70) setStatus("CRITICAL")
     else if (score >= 30) setStatus("MONITORING")
     else setStatus("SAFE")
-
-    // Increment stats
     setStats(prev => ({
       scanned: prev.scanned + 1,
       alerts: score >= 30 ? prev.alerts + 1 : prev.alerts,
       blocked: score >= 70 ? prev.blocked + 1 : prev.blocked,
     }))
-
   }, [data])
 
-  // Dynamic styling for our Call to Action button
-  const getButtonProps = () => {
-    if (status === "CRITICAL") return { text: "VIEW INCIDENT REPORT", color: "#ff4444", bg: "#4a0f0f", anim: "pulse 1s infinite" }
-    if (status === "MONITORING") return { text: "Investigate Activity", color: "#fbbf24", bg: "#422006", anim: "none" }
-    return { text: "View Analysis", color: "#8892b0", bg: "#112240", anim: "none" }
+  const getStatusColor = () => {
+    if (status === "CRITICAL") return "var(--accent-red)"
+    if (status === "MONITORING") return "var(--accent-yellow)"
+    return "var(--accent-blue)"
   }
-  const btn = getButtonProps()
+
+  const getVerdictLabel = () => {
+    if (status === "CRITICAL") return "ISOLATING THREAT"
+    if (status === "MONITORING") return "ACTIVE MONITORING"
+    return "SYSTEM SECURE"
+  }
 
   return (
-    <div className="dashboard">
-
-      {/* HEADER */}
-      <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>AEGIS SENTINEL</h1>
-          <p style={{ color: "#8892b0", marginTop: "5px" }}>COMMAND CENTER</p>
+    <div className="dashboard-root">
+      {/* Top Stats Bar */}
+      <div className="dashboard-grid">
+        <div className="stat-card">
+          <span className="stat-label">Total Scanned</span>
+          <span className="stat-value">{stats.scanned.toLocaleString()}</span>
         </div>
-        <div style={{ color: socketStatus === "CONNECTED" ? "#64ffda" : "#ff4444", fontWeight: "bold" }}>
-          {socketStatus === "CONNECTED" ? "🟢 LINK ESTABLISHED" : "🔴 LINK LOST"}
+        <div className="stat-card">
+          <span className="stat-label">Active Alerts</span>
+          <span className="stat-value" style={{ color: "var(--accent-yellow)" }}>{stats.alerts}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Threats Blocked</span>
+          <span className="stat-value" style={{ color: "var(--accent-red)" }}>{stats.blocked}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">System Health</span>
+          <span className="stat-value" style={{ color: "var(--accent-green)", fontSize: '1rem' }}>
+            {status === "CRITICAL" ? "MITIGATING" : "NOMINAL"}
+          </span>
         </div>
       </div>
 
-      {/* MIDDLE GRID: THE ACTIVE THREAT ZONE */}
-      <div className="grid">
-
+      {/* Main Panels */}
+      <div className="main-panel-grid">
         {/* Left: Process Context */}
-        <div className="panel left">
-          <h3 style={{ color: "#8892b0" }}>PROCESS CONTEXT</h3>
-          {data ? (
-            <div style={{ marginTop: "15px", lineHeight: "1.8" }}>
-              <p><b>Process:</b> <span style={{ color: "white" }}>{data.comm}</span></p>
-              <p><b>PID:</b> <span style={{ color: "white" }}>{data.pid}</span></p>
-              <p><b>PPID:</b> <span style={{ color: "#38bdf8", fontWeight: "bold" }}>{data.ppid}</span></p>
-              <p><b>UID:</b> <span style={{ color: data.uid < 1000 ? "#ff4444" : "#64ffda", fontWeight: "bold" }}>{data.uid} {data.uid < 1000 ? "(System)" : "(User)"}</span></p>
-              <p><b>Target:</b> <span style={{ color: "white" }}>{data.dest_ip}:{data.dest_port}</span></p>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Process Context</span>
+          </div>
+          <div className="process-list">
+            <div className="process-item">
+              <span className="process-key">Executable</span>
+              <span className="process-val">{data?.comm || '---'}</span>
             </div>
-          ) : (
-            <p style={{ color: "#8892b0", marginTop: "20px" }}>Awaiting kernel intercept...</p>
-          )}
+            <div className="process-item">
+              <span className="process-key">PID</span>
+              <span className="process-val">{data?.pid || '---'}</span>
+            </div>
+            <div className="process-item">
+              <span className="process-key">PPID</span>
+              <span className="process-val" style={{ color: 'var(--accent-blue)' }}>{data?.ppid || '---'}</span>
+            </div>
+            <div className="process-item">
+              <span className="process-key">UID / Scope</span>
+              <span className="process-val">
+                {data ? `${data.uid} (${data.uid < 1000 ? 'SYS' : 'USR'})` : '---'}
+              </span>
+            </div>
+            <div className="process-item">
+              <span className="process-key">Network Target</span>
+              <span className="process-val">{data ? `${data.dest_ip}:${data.dest_port}` : '---'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Center: Hero Metric */}
-        <div className="panel center" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <h2 className="alert" style={{ margin: 0, color: "#8892b0" }}>THREAT LEVEL</h2>
-
-          <div className="circle" style={{ 
-            borderColor: status === "CRITICAL" ? "#ff4444" : status === "MONITORING" ? "#fbbf24" : "#38bdf8",
-            boxShadow: status === "CRITICAL" ? "0 0 20px #ff4444" : "none",
-            transition: "all 0.3s ease"
-          }}>
-            <span style={{ fontSize: "3rem", color: "white" }}>{threatLevel}%</span>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Threat Assessment</span>
           </div>
-
-          {/* The Call-To-Action Button */}
-          <button 
-            onClick={() => navigate('/sentinel')}
-            style={{
-              marginTop: "20px", padding: "12px 24px", borderRadius: "4px", border: `1px solid ${btn.color}`,
-              backgroundColor: btn.bg, color: btn.color, fontWeight: "bold", cursor: "pointer",
-              animation: btn.anim, transition: "all 0.3s"
-            }}
-          >
-            {btn.text}
-          </button>
+          <div className="threat-gauge-container">
+            <div className="threat-gauge" style={{ borderColor: getStatusColor(), boxShadow: `0 0 20px ${getStatusColor()}22` }}>
+              <span className="threat-gauge-value" style={{ color: getStatusColor() }}>{threatLevel}%</span>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span className="text-dim text-xs">KERNEL CONFIDENCE SCORE</span>
+            </div>
+            <button className="btn-primary" onClick={() => navigate('/sentinel')}>
+              {status === "CRITICAL" ? "OPEN INCIDENT REPORT" : "VIEW FULL ANALYSIS"}
+            </button>
+          </div>
         </div>
 
         {/* Right: Sentinel Verdict */}
-        <div className="panel right">
-          <h3 style={{ color: "#8892b0" }}>SENTINEL VERDICT</h3>
-          <h2 style={{ color: status === "CRITICAL" ? "#ff4444" : status === "MONITORING" ? "#fbbf24" : "#64ffda", fontSize: "2rem", margin: "10px 0" }}>
-            {status === "CRITICAL" ? "ISOLATING" : status === "MONITORING" ? "MONITORING" : "ALLOW"}
-          </h2>
-          {data?.reason ? (
-            <p style={{ fontSize: "1rem", color: "#ccd6f6", marginTop: "15px", fontStyle: "italic", lineHeight: "1.5" }}>
-              "{data.reason}"
-            </p>
-          ) : (
-            <p style={{ color: "#8892b0" }}>System nominal.</p>
-          )}
-        </div>
-
-      </div>
-
-      {/* TERMINAL LOGS */}
-      <AttackLogs />
-
-      {/* FOOTER STATS */}
-      <div className="stats" style={{ marginTop: "20px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "15px" }}>
-        <div className="stat clean">
-          <h4 style={{ color: "#8892b0", margin: "0 0 5px 0" }}>Total Scanned</h4>
-          <p style={{ fontSize: "1.5rem", color: "white", margin: 0 }}>{stats.scanned}</p>
-        </div>
-        <div className="stat alert">
-          <h4 style={{ color: "#8892b0", margin: "0 0 5px 0" }}>Active Alerts</h4>
-          <p style={{ fontSize: "1.5rem", color: "#fbbf24", margin: 0 }}>{stats.alerts}</p>
-        </div>
-        <div className="stat blocked">
-          <h4 style={{ color: "#8892b0", margin: "0 0 5px 0" }}>Threats Isolated</h4>
-          <p style={{ fontSize: "1.5rem", color: "#ff4444", margin: 0 }}>{stats.blocked}</p>
-        </div>
-        <div className="stat monitored">
-          <h4 style={{ color: "#8892b0", margin: "0 0 5px 0" }}>System Health</h4>
-          <p style={{ fontSize: "1.5rem", color: "#64ffda", margin: 0 }}>{status === "CRITICAL" ? "COMPROMISED" : "SECURE"}</p>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Sentinel AI Verdict</span>
+          </div>
+          <div className="verdict-box" style={{ border: `1px solid ${getStatusColor()}44`, background: `${getStatusColor()}08` }}>
+            <div className="verdict-text" style={{ color: getStatusColor() }}>{getVerdictLabel()}</div>
+            <div className="text-sm text-dim" style={{ fontStyle: 'italic', lineHeight: '1.4' }}>
+              {data?.reason ? `"${data.reason}"` : "Waiting for next event stream..."}
+            </div>
+          </div>
+          <div style={{ marginTop: '24px' }}>
+            <span className="card-title text-xs">Automated Actions</span>
+            <div className="text-xs text-secondary" style={{ marginTop: '8px', lineHeight: '1.6' }}>
+              • Memory Isolation: {status === "CRITICAL" ? "ACTIVE" : "READY"}<br />
+              • Process Throttling: {status === "CRITICAL" ? "ENGAGED" : "READY"}<br />
+              • Network Lock: {status === "CRITICAL" ? "PENDING" : "IDLE"}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Terminal Logs */}
+      <div className="logs-section">
+        <div className="logs-header">
+          <span className="card-title" style={{ margin: 0 }}>Active Event Stream</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b' }}></div>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+          </div>
+        </div>
+        <AttackLogs />
+      </div>
     </div>
   )
 }

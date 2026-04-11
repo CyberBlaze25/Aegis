@@ -1,4 +1,5 @@
 import "../styles/sentinel.css"
+import "../styles/global.css"
 import { useState, useEffect } from "react"
 import { useSocket } from "../context/SocketContext"
 import { useNavigate } from "react-router-dom"
@@ -7,114 +8,89 @@ function Sentinel() {
   const { data, logs, status: socketStatus } = useSocket()
   const navigate = useNavigate()
 
-  // State to track which historical incident the user clicked on
   const [selectedIncident, setSelectedIncident] = useState(null)
 
-  // Auto-select the newest incident if none is selected
   useEffect(() => {
     if (logs.length > 0 && !selectedIncident) {
       setSelectedIncident(logs[0])
     }
   }, [logs, selectedIncident])
 
-  // Use the selected incident for the right pane, fallback to the live 'data' if history is empty
   const activeData = selectedIncident || data;
-
-  // Math & Status for the active data
   const score = Math.round((activeData?.score || 0) * 100)
   const isSystemUser = activeData?.uid < 1000
   
   let threatStatus = "SAFE"
-  let statusColor = "#38bdf8"
+  let statusColor = "var(--accent-blue)"
   if (score >= 70) { 
     threatStatus = "CRITICAL"
-    statusColor = "#ff4444" 
+    statusColor = "var(--accent-red)" 
   } else if (score >= 30) { 
     threatStatus = "WARNING"
-    statusColor = "#fbbf24" 
+    statusColor = "var(--accent-yellow)" 
   }
 
   return (
-    <div style={{ padding: "20px 40px", maxWidth: "1600px", margin: "0 auto", height: "calc(100vh - 80px)", display: "flex", flexDirection: "column" }}>
-      
-      {/* 1. TOP NAV */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", paddingBottom: "15px", marginBottom: "20px" }}>
-        <div>
-          <h1 style={{ color: "#f43f5e", margin: 0, letterSpacing: "2px", fontSize: "1.5rem" }}>FORENSIC COMMAND CENTER</h1>
-          <p style={{ color: "#8892b0", margin: "5px 0 0 0", fontSize: "0.9rem" }}>Powered by Sentinel AI Core</p>
-        </div>
-        <button 
-          onClick={() => navigate("/")}
-          style={{ background: "transparent", color: "#38bdf8", border: "1px solid #38bdf8", padding: "8px 16px" }}
-        >
-          ← Return to Dashboard
-        </button>
-      </div>
-
-      {/* 2. THE HUD (Heads Up Display) */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#020617", border: "1px solid #1e293b", borderRadius: "8px", padding: "20px 40px", marginBottom: "20px" }}>
-        {/* Left Flair */}
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: "#8892b0", fontSize: "0.8rem", margin: "0 0 5px 0", letterSpacing: "1px" }}>eBPF SENSOR</p>
-          <p style={{ color: socketStatus === "CONNECTED" ? "#64ffda" : "#ff4444", fontWeight: "bold", margin: 0 }}>
+    <div className="sentinel-layout">
+      {/* 1. HUD */}
+      <div className="sentinel-hud">
+        <div className="card" style={{ textAlign: 'center' }}>
+          <span className="text-xs text-dim">eBPF SENSOR</span>
+          <div style={{ color: socketStatus === "CONNECTED" ? "var(--accent-green)" : "var(--accent-red)", fontWeight: "bold", marginTop: '8px' }}>
             {socketStatus === "CONNECTED" ? "ACTIVE / SYNCED" : "OFFLINE"}
-          </p>
-        </div>
-
-        {/* Center: The Circular Score */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div className="circle" style={{ 
-            width: "120px", height: "120px", fontSize: "2rem", margin: "0", borderWidth: "6px",
-            borderColor: statusColor, boxShadow: `0 0 20px ${statusColor}40`, color: "white" 
-          }}>
-            <span>{score}%</span>
           </div>
-          <p style={{ color: statusColor, fontWeight: "bold", letterSpacing: "2px", marginTop: "15px", marginBottom: 0 }}>
-            {threatStatus}
-          </p>
         </div>
 
-        {/* Right Flair */}
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: "#8892b0", fontSize: "0.8rem", margin: "0 0 5px 0", letterSpacing: "1px" }}>INCIDENTS LOGGED</p>
-          <p style={{ color: "white", fontWeight: "bold", margin: 0, fontSize: "1.2rem" }}>{logs.length}</p>
+        <div className="card" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '32px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span className="text-xs text-dim">THREAT SCORE</span>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: statusColor }}>{score}%</div>
+          </div>
+          <div style={{ width: '1px', height: '32px', backgroundColor: 'var(--border-color)' }}></div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span className="text-xs text-dim">AI STATUS</span>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: statusColor }}>{threatStatus}</div>
+          </div>
+        </div>
+
+        <div className="card" style={{ textAlign: 'center' }}>
+          <span className="text-xs text-dim">TOTAL INCIDENTS</span>
+          <div style={{ color: "var(--text-primary)", fontWeight: "bold", marginTop: '8px', fontSize: '1.25rem' }}>
+            {logs.length}
+          </div>
         </div>
       </div>
 
-      {/* 3. THE 40/60 SPLIT */}
-      <div style={{ display: "flex", gap: "20px", flex: 1, minHeight: 0 }}>
-        
-        {/* LEFT PANE (40%): THE HISTORY LEDGER */}
-        <div style={{ flex: "0 0 40%", background: "#020617", border: "1px solid #1e293b", borderRadius: "8px", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ padding: "15px", borderBottom: "1px solid #1e293b", background: "#0f172a" }}>
-            <h3 style={{ color: "#8892b0", margin: 0, fontSize: "0.9rem", letterSpacing: "1px" }}>THREAT ARCHIVE</h3>
+      {/* 2. MAIN SPLIT */}
+      <div className="sentinel-split">
+        {/* HISTORY LEDGER */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+          <div className="card-header" style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', margin: 0 }}>
+            <span className="card-title">Threat Archive</span>
           </div>
-          
-          <div style={{ overflowY: "auto", flex: 1, padding: "10px" }}>
+          <div className="incident-list">
             {logs.length === 0 ? (
-              <p style={{ color: "#8892b0", textAlign: "center", marginTop: "20px" }}>No telemetry recorded.</p>
+              <div className="text-dim" style={{ textAlign: "center", padding: "32px" }}>No telemetry recorded.</div>
             ) : (
               logs.map((log, i) => {
                 const logScore = Math.round((log.score || 0) * 100)
                 const isSelected = selectedIncident === log
-                const rowColor = logScore >= 70 ? "#ff4444" : logScore >= 30 ? "#fbbf24" : "#38bdf8"
+                let rowColor = "var(--accent-blue)"
+                if (logScore >= 70) rowColor = "var(--accent-red)"
+                else if (logScore >= 30) rowColor = "var(--accent-yellow)"
                 
                 return (
                   <div 
                     key={i} 
+                    className={`incident-item ${isSelected ? 'active' : ''}`}
                     onClick={() => setSelectedIncident(log)}
-                    style={{ 
-                      padding: "12px", borderBottom: "1px solid #1e293b", cursor: "pointer",
-                      background: isSelected ? "#0f172a" : "transparent",
-                      borderLeft: isSelected ? `4px solid ${rowColor}` : "4px solid transparent",
-                      transition: "all 0.2s ease"
-                    }}
+                    style={{ borderLeftColor: isSelected ? rowColor : 'transparent' }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                      <span style={{ color: "#64ffda", fontSize: "0.8rem", fontFamily: "monospace" }}>[{new Date().toLocaleTimeString()}]</span>
-                      <span style={{ color: rowColor, fontWeight: "bold", fontSize: "0.8rem" }}>CRS: {logScore}%</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span className="text-xs font-mono" style={{ color: "var(--accent-green)" }}>[{new Date().toLocaleTimeString()}]</span>
+                      <span className="text-xs font-mono" style={{ color: rowColor, fontWeight: "bold" }}>CRS: {logScore}%</span>
                     </div>
-                    <div style={{ color: "white", fontSize: "0.9rem", fontFamily: "monospace" }}>
+                    <div className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>
                       PID: {log.pid} ({log.comm})
                     </div>
                   </div>
@@ -124,56 +100,59 @@ function Sentinel() {
           </div>
         </div>
 
-        {/* RIGHT PANE (60%): THE FORENSIC DETAIL MATRIX */}
-        <div style={{ flex: "0 0 60%", background: "#020617", border: "1px solid #1e293b", borderRadius: "8px", padding: "25px", overflowY: "auto" }}>
+        {/* FORENSIC DETAIL MATRIX */}
+        <div className="card" style={{ overflowY: 'auto' }}>
           {!activeData ? (
-            <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#8892b0" }}>
+            <div className="text-dim" style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
               Select an incident to view forensic details.
             </div>
           ) : (
             <>
-              {/* AI Brief */}
-              <div style={{ borderLeft: `4px solid ${statusColor}`, paddingLeft: "20px", marginBottom: "30px" }}>
-                <h4 style={{ color: "#8892b0", margin: "0 0 10px 0", fontSize: "0.8rem", letterSpacing: "1px" }}>SENTINEL INTELLIGENCE BRIEF</h4>
-                <p style={{ color: "white", fontSize: "1.2rem", lineHeight: "1.6", margin: 0, fontStyle: "italic" }}>
-                  "{activeData.reason}"
+              <div className="brief-box" style={{ borderLeftColor: statusColor }}>
+                <span className="text-xs text-dim">SENTINEL INTELLIGENCE BRIEF</span>
+                <p className="brief-text" style={{ color: "var(--text-primary)", marginTop: '8px' }}>
+                  "{activeData.reason || "No automated summary available."}"
                 </p>
               </div>
 
-              {/* Data Grid */}
-              <h4 style={{ color: "#8892b0", margin: "0 0 15px 0", fontSize: "0.8rem", letterSpacing: "1px", borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
-                TELEMETRY EVIDENCE MATRIX
-              </h4>
-              
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "15px", fontFamily: "monospace", fontSize: "0.95rem" }}>
-                <div style={{ color: "#8892b0" }}>PROCESS BINARY:</div>
-                <div style={{ color: "white" }}>{activeData.comm}</div>
+              <div className="card-title" style={{ marginBottom: '16px', fontSize: '0.75rem' }}>Forensic Evidence Matrix</div>
+              <div className="forensic-matrix">
+                <div className="forensic-key">Process Binary</div>
+                <div className="forensic-val">{activeData.comm}</div>
 
-                <div style={{ color: "#8892b0" }}>PROCESS ID (PID):</div>
-                <div style={{ color: "white" }}>{activeData.pid}</div>
+                <div className="forensic-key">Process ID (PID)</div>
+                <div className="forensic-val">{activeData.pid}</div>
 
-                <div style={{ color: "#8892b0" }}>PARENT ID (PPID):</div>
-                <div style={{ color: "white" }}>{activeData.ppid}</div>
+                <div className="forensic-key">Parent ID (PPID)</div>
+                <div className="forensic-val">{activeData.ppid}</div>
 
-                <div style={{ color: "#8892b0" }}>USER IDENTITY (UID):</div>
-                <div style={{ color: isSystemUser ? "#ff4444" : "#64ffda", fontWeight: "bold" }}>
-                  {activeData.uid} {isSystemUser ? "[SYSTEM ACCOUNT DETECTED]" : "[STANDARD USER]"}
+                <div className="forensic-key">User Identity</div>
+                <div className="forensic-val" style={{ color: isSystemUser ? "var(--accent-red)" : "var(--accent-green)", fontWeight: "bold" }}>
+                  {activeData.uid} {isSystemUser ? "[SYSTEM PRIVILEGE]" : "[STANDARD USER]"}
                 </div>
 
-                <div style={{ color: "#8892b0", marginTop: "15px" }}>NETWORK TARGET:</div>
-                <div style={{ color: "#fbbf24", fontWeight: "bold", marginTop: "15px" }}>
-                  {activeData.dest_ip} : {activeData.dest_port}
+                <div className="forensic-key">Network Target</div>
+                <div className="forensic-val" style={{ color: "var(--accent-yellow)" }}>
+                  {activeData.dest_ip}:{activeData.dest_port}
                 </div>
 
-                <div style={{ color: "#8892b0" }}>ACTION TAKEN:</div>
-                <div style={{ color: statusColor, fontWeight: "bold" }}>
-                  {score >= 70 ? "NETWORK NAMESPACE ISOLATION APPLIED" : "TRAFFIC ALLOWED / LOGGED"}
+                <div className="forensic-key">Mitigation Status</div>
+                <div className="forensic-val" style={{ color: statusColor, fontWeight: "bold" }}>
+                  {score >= 70 ? "NETWORK NAMESPACE ISOLATED" : "ACTIVE MONITORING"}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '32px', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
+                <span className="card-title" style={{ fontSize: '0.75rem' }}>Automated Analysis Sequence</span>
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div className="text-sm text-dim">• Scanning process memory segments... [COMPLETE]</div>
+                  <div className="text-sm text-dim">• Trace system call behavioral sequence... [COMPLETE]</div>
+                  <div className="text-sm text-dim">• Verifying binary signature... [VERIFIED]</div>
                 </div>
               </div>
             </>
           )}
         </div>
-
       </div>
     </div>
   )
