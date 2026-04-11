@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"time"
@@ -20,7 +19,7 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-// 1. UPDATED STRUCT: Matches the new eBPF probe and holds the AI Verdict
+// --- STRUCTS ---
 type TelemetryPayload struct {
 	EventType int     `json:"event_type"` // 1 = Network, 2 = Execution
 	PID       int     `json:"pid"`
@@ -30,11 +29,10 @@ type TelemetryPayload struct {
 	Filename  string  `json:"filename,omitempty"`
 	DestIP    string  `json:"dest_ip,omitempty"`
 	DestPort  int     `json:"dest_port,omitempty"`
-	Score     float64 `json:"score"`  // Added so React can read the score
-	Reason    string  `json:"reason"` // Added so React can read the verdict
+	Score     float64 `json:"score"`
+	Reason    string  `json:"reason"`
 }
 
-// 2. NEW STRUCT: For the Honeypod to send captured payloads to the AI
 type HoneypodPayload struct {
 	SourceIP string `json:"source_ip"`
 	Data     string `json:"data"`
@@ -48,9 +46,7 @@ type TelemetryController struct {
 }
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for the hackathon
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 // ==========================================
@@ -58,6 +54,8 @@ var upgrader = websocket.Upgrader{
 // ==========================================
 func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 	var payload TelemetryPayload
+
+	// Create the struct reference WITHOUT calling the system mkdir command again
 	brazilProto := &brazil.BrazilProtocol{
 		HoneypodIP:   "172.18.0.5",
 		HoneypodPort: "4444",
@@ -68,30 +66,28 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 		return
 	}
 
+	// 1. Broadcast to UI immediately so it doesn't freeze waiting for Groq
 	tc.Hub.Broadcast <- payload
 
-	// 1. Build a behavioral string based on the Event Type
+	// 2. Build behavior string
 	var behaviorStr string
-	if payload.EventType == 2 { // EXECVE
+	if payload.EventType == 2 {
 		behaviorStr = fmt.Sprintf("Process spawned: UID %d executed %s via %s", payload.UID, payload.Filename, payload.Comm)
-	} else { // CONNECT
+	} else {
 		behaviorStr = fmt.Sprintf("Network connect: UID %d process %s connecting to %s:%d", payload.UID, payload.Comm, payload.DestIP, payload.DestPort)
 	}
 
+	// 3. Process the AI/DB logic in the background
 	go func(p TelemetryPayload, bStr string) {
 		ctx := context.Background()
 
-		// 2. Vectorize the behavior for Qdrant
 		vector, err := ai.GetEmbedding(*tc.Cfg, bStr)
 		if err != nil {
 			logger.Log.Error("Embedding failed", slog.Any("Error", err))
 			return
 		}
 
-		// ---------------------------------------------------------
-		// 🔴 THE QDRANT REFLEX (Zero-Day Immunity Check)
-		// ---------------------------------------------------------
-		// Before calling the slow LLM, check if we've seen this exact behavior trap before!
+		// FAST PATH: Check Qdrant for Zero-Day Immunity
 		reflexMatch, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
 			CollectionName: "aegis_signatures",
 			Query:          qdrant.NewQuery(vector...),
@@ -99,38 +95,14 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			WithPayload:    qdrant.NewWithPayload(true),
 		})
 
-		// If Qdrant returns a highly similar match (> 0.90), bypass the LLM entirely!
 		if err == nil && len(reflexMatch) > 0 && reflexMatch[0].Score > 0.90 {
 			p.Score = 1.00
-			p.Reason = "QDRANT REFLEX: Known Malicious Behavioral Signature Match (Auto-Isolated)"
+			p.Reason = "QDRANT REFLEX: Known Malicious Behavioral Signature Match"
 			logger.Log.Warn("⚡ QDRANT REFLEX TRIGGERED. Bypassing LLM.", slog.Int("PID", p.PID))
-
-			// Trigger Brazil Protocol immediately
 			brazilProto.RedirectToHoneypod(p.PID, p.DestPort)
-
 		} else {
-			// ---------------------------------------------------------
-			// 🟡 THE SLOW PATH (LLM Evaluation)
-			// ---------------------------------------------------------
-			mitreContext := "General anomalous activity"
-
-			// Optional: Fetch MITRE Context from your other collection
-			mitreResult, err := tc.Qdrant.Query(ctx, &qdrant.QueryPoints{
-				CollectionName: "mitre_ttps",
-				Query:          qdrant.NewQuery(vector...),
-				Limit:          &[]uint64{1}[0],
-				WithPayload:    qdrant.NewWithPayload(true),
-			})
-
-			if err == nil && len(mitreResult) > 0 {
-				mPayload := mitreResult[0].Payload
-				tacticID := mPayload["tactic_id"].GetStringValue()
-				desc := mPayload["description"].GetStringValue()
-				mitreContext = fmt.Sprintf("%s: %s", tacticID, desc)
-			}
-
-			// Ask the LLM
-			analysis, err := ai.EvalThreat(tc.Cfg, bStr, mitreContext)
+			// SLOW PATH: Ask Groq
+			analysis, err := ai.EvalThreat(tc.Cfg, bStr, "General anomalous activity")
 			if err != nil {
 				logger.Log.Error("Sentinel Brain Error", slog.Any("Error", err))
 				return
@@ -139,25 +111,27 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 			p.Score = analysis.Score
 			p.Reason = analysis.Verdict
 
+			// Log the AI's mind to your terminal
 			logger.Log.Info("🧠 SENTINEL VERDICT",
 				slog.Float64("Score", p.Score),
 				slog.String("Reason", p.Reason),
 				slog.Int("PID", p.PID),
 			)
 
-			// Apply Brazil Protocol based on LLM Score
+			// Apply Enforcement
 			if p.Score >= 0.90 {
-				log.Printf("🔴 DEFCON 1: Isolating PID %d to Honeypod", p.PID)
+				logger.Log.Warn("🔴 DEFCON 1: Isolating PID to Honeypod", slog.Int("PID", p.PID))
 				brazilProto.RedirectToHoneypod(p.PID, p.DestPort)
 			} else if p.Score >= 0.70 {
-				log.Printf("🟡 DEFCON 2: Microsegmenting PID %d", p.PID)
+				logger.Log.Warn("🟡 DEFCON 2: Microsegmenting PID", slog.Int("PID", p.PID))
 				brazilProto.IsolatePID(p.PID)
 			}
 		}
 
-		// 3. Broadcast to React and Save to Postgres
+		// Update the UI with the final score
 		tc.Hub.Broadcast <- p
 
+		// Save to DB
 		record := db.TelemetryRecord{
 			Timestamp: time.Now(),
 			PID:       p.PID,
@@ -179,7 +153,7 @@ func (tc *TelemetryController) IngestTelemetry(c *gin.Context) {
 }
 
 // ==========================================
-// ENDPOINT 2: HONEYPOD WEBHOOK (The Intelligence Loop)
+// ENDPOINT 2: HONEYPOD WEBHOOK
 // ==========================================
 func (tc *TelemetryController) IngestHoneypodWebhook(c *gin.Context) {
 	var hp HoneypodPayload
@@ -192,20 +166,16 @@ func (tc *TelemetryController) IngestHoneypodWebhook(c *gin.Context) {
 
 	go func(data string, sourceIP string) {
 		ctx := context.Background()
-		brazilProto := brazil.NewBrazilProtocol("172.18.0.5", "4444") // Ensure IP matches your Honeypod
-		brazilProto := brazil.NewBrazilProtocol("172.18.0.5", "4444") // Ensure IP matches your Honeypod
 
-		// 1. Convert the captured malware payload into a mathematical vector
 		vector, err := ai.GetEmbedding(*tc.Cfg, data)
 		if err != nil {
 			logger.Log.Error("Failed to vectorize honeypod payload", slog.Any("Error", err))
 			return
 		}
 
-		// 2. Save it to Qdrant as a permanent Immune Signature
 		points := []*qdrant.PointStruct{
 			{
-				Id:      qdrant.NewIDNum(uint64(time.Now().UnixNano())), // Unique ID
+				Id:      qdrant.NewIDNum(uint64(time.Now().UnixNano())),
 				Vectors: qdrant.NewVectorsDense(vector),
 				Payload: qdrant.NewValueMap(map[string]any{
 					"raw_payload": data,
@@ -231,7 +201,7 @@ func (tc *TelemetryController) IngestHoneypodWebhook(c *gin.Context) {
 }
 
 // ==========================================
-// ENDPOINT 3 & 4: HISTORY & WEBSOCKETS
+// ENDPOINT 3 & 4: WEBSOCKETS & HISTORY
 // ==========================================
 func (tc *TelemetryController) GetHistory(c *gin.Context) {
 	w := c.Writer
@@ -249,7 +219,6 @@ func (tc *TelemetryController) GetHistory(c *gin.Context) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-
 	json.NewEncoder(w).Encode(records)
 }
 
