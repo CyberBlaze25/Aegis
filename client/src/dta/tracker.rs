@@ -61,6 +61,9 @@ pub(crate) fn Evaluate(tracker: &mut Tracker, event: &Event) {
     // 7. Drop core kernel and boot daemons (Extremely low PIDs are safe)
     if pid < 1000 { return; }
 
+    // 8. Drop Ubuntu APT Package Manager noise
+    if comm.contains("apt") || comm == "http" { return; }
+
     // ==========================================
 
     // ==========================================

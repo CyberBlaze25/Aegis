@@ -1,122 +1,146 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import "../styles/honeypot.css";
-import "../styles/global.css";
+import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
-function Honeypod() {
+export default function Honeypod() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const targetPid = location.state?.targetPid || "---";
+  const [activeThreat, setActiveThreat] = useState(null);
+  const [rawLogs, setRawLogs] = useState([]);
+  const [vectorState, setVectorState] = useState({ status: "WAITING", array: [] });
+  const ws = useRef(null);
 
-  const [intercepts, setIntercepts] = useState([]);
-  const [activeVector, setActiveVector] = useState(null);
-
+  // Connect to the Go API Websocket
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const res = await fetch("http://localhost:8081/api/honeypod/logs");
-        const data = await res.json();
-        
-        if (data && data.length > 0) {
-          if (intercepts.length === 0 || data[0].timestamp !== intercepts[0]?.timestamp) {
-            simulateVectorization(data[0].data);
-          }
-          setIntercepts(data);
-        }
-      } catch (err) {
-        console.error("Honeypod offline.");
+    ws.current = new WebSocket("ws://localhost:8080/api/v1/telemetry/ws");
+    
+    ws.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      // Only trigger the Honeypod UI if the AI scored it >= 0.90 (DEFCON 1)
+      if (data.score >= 0.90) {
+        handleNewThreat(data);
       }
     };
 
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 2000);
-    return () => clearInterval(interval);
-  }, [intercepts]);
+    return () => ws.current?.close();
+  }, []);
 
-  const simulateVectorization = (text) => {
-    setActiveVector({ status: "EXTRACTING", array: [] });
+  const handleNewThreat = (data) => {
+    setActiveThreat(data);
+    
+    // 1. Simulate the Raw Socket Intercept (Left Panel)
+    const mockHex = `00000000  ${Array.from({length: 8}, () => Math.floor(Math.random()*255).toString(16).padStart(2,'0')).join(' ')}  |........|`;
+    const logEntry = `[${new Date().toLocaleTimeString()}] INBOUND TCP (${data.comm}):\n${mockHex}\nPAYLOAD: ${data.dest_ip}:${data.dest_port} EXFIL_INIT`;
+    setRawLogs(prev => [...prev, logEntry]);
+
+    // 2. Trigger the Vector Synthesis Animation (Right Panel)
+    setVectorState({ status: "EXTRACTING", array: [] });
     setTimeout(() => {
-      const fakeVector = Array.from({length: 12}, () => (Math.random() * 2 - 1).toFixed(4));
-      setActiveVector({ status: "EMBEDDING", array: fakeVector });
+      const fakeVector = Array.from({length: 24}, () => (Math.random() * 2 - 1).toFixed(4));
+      setVectorState({ status: "EMBEDDING", array: fakeVector });
+      
       setTimeout(() => {
-        setActiveVector({ status: "SYNCED", array: fakeVector });
+        setVectorState({ status: "SYNCED", array: fakeVector });
       }, 1500);
     }, 1000);
   };
 
   return (
-    <div className="honeypod-layout">
-      {/* LEFT PANE: PAYLOAD TERMINAL */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className="card-header">
-          <span className="card-title">Live Payload Interception (PID: {targetPid})</span>
-          <span style={{ color: "var(--accent-red)", fontSize: "0.75rem", fontWeight: "bold" }}>● SPOOFED NETWORKS ACTIVE</span>
+    <div style={{ padding: "20px 40px", height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#020617", fontFamily: "sans-serif" }}>
+      
+      {/* TOP RIBBON */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", paddingBottom: "15px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <button onClick={() => navigate("/")} style={{ background: "transparent", color: "#38bdf8", border: "1px solid #38bdf8", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}>
+            ← Return to Radar
+          </button>
+          <div>
+            <h1 style={{ color: "#f43f5e", margin: 0, letterSpacing: "2px", fontSize: "1.5rem", textTransform: "uppercase" }}>
+              Honeypod Extraction Matrix
+            </h1>
+            <p style={{ color: "#8892b0", margin: "5px 0 0 0", fontSize: "0.9rem" }}>
+              {activeThreat ? `PID ${activeThreat.pid} (UID ${activeThreat.uid}) Contained. Network routed to internal trap.` : "System Idle. Monitoring for DEFCON 1 Isolation Events."}
+            </p>
+          </div>
         </div>
         
-        <div className="payload-terminal">
-          {intercepts.length === 0 ? (
-            <div className="text-dim" style={{ textAlign: "center", marginTop: "50px" }}>Awaiting malware transmission...</div>
-          ) : (
-            intercepts.map((log, i) => (
-              <div key={i} className="payload-entry">
-                <div className="payload-header">
-                  [{new Date(log.timestamp).toLocaleTimeString()}] INBOUND FROM: {log.source_ip}
-                </div>
-                <div className="payload-content">
-                  {log.data}
-                </div>
-              </div>
-            ))
-          )}
+        <div style={{ background: activeThreat ? "#4c0519" : "#0f172a", border: `1px solid ${activeThreat ? "#f43f5e" : "#334155"}`, padding: "10px 20px", borderRadius: "4px", textAlign: "right" }}>
+          <p style={{ color: activeThreat ? "#fca5a5" : "#64748b", fontSize: "0.7rem", margin: "0 0 5px 0", letterSpacing: "1px" }}>BRAZIL PROTOCOL STATUS</p>
+          <p style={{ color: activeThreat ? "white" : "#475569", fontSize: "1.1rem", fontWeight: "bold", margin: 0, animation: activeThreat ? "pulse 2s infinite" : "none" }}>
+            {activeThreat ? "🔴 ACTIVE CONTAINMENT" : "🟢 STANDBY"}
+          </p>
         </div>
       </div>
 
-      {/* RIGHT PANE: INTELLIGENCE PIPELINE */}
-      <div className="card" style={{ overflowY: 'auto' }}>
-        <div className="card-header">
-          <span className="card-title">Aegis Vector Pipeline</span>
+      {/* 3-PANEL MATRIX */}
+      <div style={{ display: "flex", gap: "20px", flex: 1, minHeight: 0 }}>
+        
+        {/* PANEL 1: RAW INTERCEPT */}
+        <div style={{ flex: "1", background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 15px", borderBottom: "1px solid #1e293b", background: "#020617" }}>
+            <h3 style={{ color: "#38bdf8", margin: 0, fontSize: "0.8rem", letterSpacing: "1px" }}>1. RAW SOCKET INTERCEPT</h3>
+          </div>
+          <div style={{ flex: 1, padding: "15px", overflowY: "auto", fontFamily: "monospace", fontSize: "0.85rem", whiteSpace: "pre-wrap" }}>
+            {rawLogs.length === 0 ? <span style={{ color: "#475569" }}>Waiting for malware transmission...</span> : rawLogs.map((log, i) => (
+              <div key={i} style={{ color: "#64ffda", marginBottom: "15px" }}>{log}</div>
+            ))}
+          </div>
         </div>
 
-        {!activeVector ? (
-          <div className="text-dim" style={{ textAlign: "center", marginTop: "40px", fontStyle: "italic" }}>
-            Awaiting payload for behavioral embedding...
+        {/* PANEL 2: AI INTENT */}
+        <div style={{ flex: "1", background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 15px", borderBottom: "1px solid #1e293b", background: "#020617" }}>
+            <h3 style={{ color: "#a855f7", margin: 0, fontSize: "0.8rem", letterSpacing: "1px" }}>2. AI INTENT ANALYSIS</h3>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="pipeline-step">
-              <span className="text-xs text-dim">PIPELINE STATUS</span>
-              <div style={{ 
-                marginTop: '8px', fontWeight: "bold", 
-                color: activeVector.status === "SYNCED" ? "var(--accent-green)" : "var(--accent-yellow)" 
-              }}>
-                {activeVector.status === "EXTRACTING" && "1. EXTRACTING TOKENS"}
-                {activeVector.status === "EMBEDDING" && "2. GENERATING LLM EMBEDDING"}
-                {activeVector.status === "SYNCED" && "3. SIGNATURE SYNCED TO QDRANT"}
-              </div>
-            </div>
-
-            <div className="pipeline-step">
-              <span className="text-xs text-dim">BEHAVIORAL VECTOR (DIM: 384)</span>
-              <div className="vector-box" style={{ opacity: activeVector.array.length > 0 ? 1 : 0.3 }}>
-                [{activeVector.array.length > 0 ? activeVector.array.join(", ") : "0.0000, 0.0000, 0.0000..."}, ...]
-              </div>
-            </div>
-
-            {activeVector.status === "SYNCED" && (
-              <div className="immunity-badge">
-                <div style={{ color: "var(--accent-green)", fontWeight: "bold", fontSize: "0.875rem", marginBottom: '8px' }}>
-                  ✓ ZERO-DAY IMMUNITY ACHIEVED
-                </div>
-                <p className="text-sm text-secondary" style={{ lineHeight: "1.5" }}>
-                  Malware behavior vectorized and stored. Future execution matches will be neutralized by the kernel instantly.
-                </p>
+          <div style={{ flex: 1, padding: "15px", fontFamily: "monospace", fontSize: "0.85rem", color: "#cbd5e1" }}>
+            {!activeThreat ? <span style={{ color: "#475569" }}>Awaiting payload for processing...</span> : (
+              <div>
+                <p style={{ color: "#a855f7" }}>{`> Analyzing telemetry & raw bytes...`}</p>
+                <p>{`> Target Process: ${activeThreat.comm} (PID: ${activeThreat.pid})`}</p>
+                <p>{`> Extracted Reason: ${activeThreat.reason}`}</p>
+                <br/>
+                {vectorState.status !== "EXTRACTING" && (
+                  <div style={{ background: "#1e1b4b", padding: "15px", borderLeft: "3px solid #a855f7", marginTop: "10px" }}>
+                    <span style={{ color: "#f472b6", fontWeight: "bold" }}>THREAT SCORE:</span> {activeThreat.score.toFixed(2)}<br/><br/>
+                    <span style={{ color: "#f472b6", fontWeight: "bold" }}>INTENT:</span> Unauthorized System-Level C2 Beaconing / Exfiltration.<br/>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
+
+        {/* PANEL 3: QDRANT */}
+        <div style={{ flex: "1", background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 15px", borderBottom: "1px solid #1e293b", background: "#020617" }}>
+            <h3 style={{ color: "#64ffda", margin: 0, fontSize: "0.8rem", letterSpacing: "1px" }}>3. QDRANT SIGNATURE (VECTOR DB)</h3>
+          </div>
+          <div style={{ flex: 1, padding: "15px", overflowY: "auto" }}>
+            {vectorState.status === "WAITING" ? <span style={{ color: "#475569", fontFamily: "monospace", fontSize: "0.85rem" }}>Awaiting vector generation...</span> : (
+              <div>
+                <p style={{ color: vectorState.status === "SYNCED" ? "#64ffda" : "#fbbf24", fontWeight: "bold", fontSize: "0.85rem", letterSpacing: "1px", fontFamily: "monospace" }}>
+                  {vectorState.status === "SYNCED" ? "✓ SIGNATURE SYNCED TO VECTOR DB" : "GENERATING LLM EMBEDDING..."}
+                </p>
+                
+                <div style={{ background: "#020617", padding: "15px", borderRadius: "4px", fontFamily: "monospace", color: "#38bdf8", fontSize: "0.75rem", wordBreak: "break-all", marginTop: "15px", opacity: vectorState.array.length > 0 ? 1 : 0.3 }}>
+                  <span style={{ color: "#64748b" }}>// Dim: 384 Cosine Similarity Array</span><br/>
+                  [{vectorState.array.length > 0 ? vectorState.array.join(", ") : "0.0000, 0.0000..."} ...]
+                </div>
+
+                {vectorState.status === "SYNCED" && (
+                  <div style={{ marginTop: "20px", border: "1px solid #64ffda", background: "rgba(100, 255, 218, 0.05)", padding: "15px", borderRadius: "4px" }}>
+                    <p style={{ color: "#64ffda", margin: "0 0 5px 0", fontWeight: "bold", fontSize: "0.9rem" }}>ZERO-DAY IMMUNITY ACHIEVED</p>
+                    <p style={{ color: "#94a3b8", margin: 0, fontSize: "0.8rem", lineHeight: "1.5" }}>
+                      Future executions matching this mathematical vector will bypass the LLM and instantly trigger isolation.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
+      <style>{`@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }`}</style>
     </div>
   );
 }
-
-export default Honeypod;
