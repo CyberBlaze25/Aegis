@@ -8,21 +8,34 @@ export default function Honeypod() {
   const [vectorState, setVectorState] = useState({ status: "WAITING", array: [] });
   const ws = useRef(null);
 
-  // Connect to the Go API Websocket
+  // Connect to the Go API Websocket AND Fetch History
   useEffect(() => {
+    // 1. RESTORE STATE ON REFRESH: Fetch the recent history from the DB
+    fetch("http://localhost:8080/api/v1/telemetry/history")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          // Find the most recent DEFCON 1 isolation event in the DB
+          const lastCriticalThreat = data.find(d => d.score >= 0.90);
+          if (lastCriticalThreat) {
+            handleNewThreat(lastCriticalThreat);
+          }
+        }
+      })
+      .catch(err => console.error("Could not fetch history:", err));
+
+    // 2. LISTEN FOR LIVE EVENTS: Connect to the Websocket
     ws.current = new WebSocket("ws://localhost:8080/api/v1/telemetry/ws");
     
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
-      // Only trigger the Honeypod UI if the AI scored it >= 0.90 (DEFCON 1)
       if (data.score >= 0.90) {
         handleNewThreat(data);
       }
     };
 
     return () => ws.current?.close();
-  }, []);
+  }, []); // Run once on mount
 
   const handleNewThreat = (data) => {
     setActiveThreat(data);

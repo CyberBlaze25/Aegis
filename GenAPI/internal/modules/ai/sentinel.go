@@ -63,10 +63,23 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 		Timeout: 10 * time.Second,
 	}
 	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Groq API failed %d: %s", resp.StatusCode, string(body))
+	
+	// 🛡️ SAFETY NET 1: Network failure or timeout
+	if err != nil {
+		return &CRSResponse{
+			Score:   0.1,
+			Verdict: fmt.Sprintf("AI Skipped (API Error: %v)", err),
+		}, nil
 	}
 	defer resp.Body.Close()
+
+	// 🛡️ SAFETY NET 2: Rate limits (HTTP 429) or Auth errors
+	if resp.StatusCode != 200 {
+		return &CRSResponse{
+			Score:   0.1,
+			Verdict: fmt.Sprintf("AI Skipped (Groq HTTP %d)", resp.StatusCode),
+		}, nil
+	}
 
 	respBody, _ := ioutil.ReadAll(resp.Body)
 
@@ -78,6 +91,14 @@ func EvalThreat(cfg *config.Config, telemetry string, mitreContext string) (*CRS
 		} `json:"choices"`
 	}
 	json.Unmarshal(respBody, &groqResp)
+
+	// 🛡️ SAFETY NET 3: Empty choices array (Prevents SIGSEGV Panic!)
+	if len(groqResp.Choices) == 0 {
+		return &CRSResponse{
+			Score:   0.1,
+			Verdict: "AI Skipped (Empty response from Groq)",
+		}, nil
+	}
 
 	var result CRSResponse
 	json.Unmarshal([]byte(groqResp.Choices[0].Message.Content), &result)
